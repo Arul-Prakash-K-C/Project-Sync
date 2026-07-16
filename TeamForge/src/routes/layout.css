@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Newsreader', serif;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  
+  --animate-gradient: gradient 8s linear infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  
+  --shadow-elevated: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.06) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.06) 0px 3px 3px -1.5px, rgba(0, 0, 0, 0.06) 0px 6px 6px -3px, rgba(0, 0, 0, 0.06) 0px 12px 12px -6px, rgba(0, 0, 0, 0.06) 0px 24px 24px -12px, inset 0px 1px 1px 0px rgba(255, 255, 255, 0.15), inset 0px -1px 1px 0px rgba(0, 0, 0, 0.6);
+  
+  @keyframes gradient {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+}
+
+:root {
+  --background: #F1FEC8; /* Vanilla */
+  --foreground: #23212C; /* Cosmic */
+  --card: #ffffff;
+  --card-foreground: #23212C;
+  --popover: #ffffff;
+  --popover-foreground: #23212C;
+  --primary: #36255C; /* Dark Violet/Cosmic Accent */
+  --primary-foreground: #F1FEC8;
+  --secondary: #EAF3CE; /* Soft light vanilla tint */
+  --secondary-foreground: #23212C;
+  --muted: #E2EBBF;
+  --muted-foreground: #5B643E;
+  --accent: #9A7AF1; /* Lavender-purple accent */
+  --accent-foreground: #ffffff;
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(210 20% 98%);
+  --border: #D8E2B5;
+  --input: #D8E2B5;
+  --ring: #36255C;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #23212C; /* Cosmic */
+  --foreground: #F1FEC8; /* Vanilla */
+  --card: #2B2935; /* Slightly lighter cosmic surface */
+  --card-foreground: #F1FEC8;
+  --popover: #23212C;
+  --popover-foreground: #F1FEC8;
+  --primary: #F1FEC8; /* Vanilla as primary accent */
+  --primary-foreground: #23212C;
+  --secondary: #302E3B; /* Lighter cosmic for secondary surfaces */
+  --secondary-foreground: #F1FEC8;
+  --muted: #3B3848;
+  --muted-foreground: #9C99A8;
+  --accent: #7C5DF9; /* Glowing cosmic purple/violet */
+  --accent-foreground: #ffffff;
+  --destructive: hsl(0 62.8% 30.6%);
+  --destructive-foreground: hsl(210 20% 98%);
+  --border: #3A3747;
+  --input: #3A3747;
+  --ring: #F1FEC8;
+}
+
+* {
+  border-color: var(--border);
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Premium Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-foreground);
+}
+
+/* Explicit display font rule */
+.font-display {
+  font-family: 'Newsreader', Georgia, Cambria, 'Times New Roman', Times, serif !important;
+}
+
+/* Gradient border shell */
+.gradient-shell {
+  display: inline-block;
+  padding: 1px;
+  border-radius: var(--radius);
+  background: radial-gradient(rgba(0, 0, 0, 0) 55%, rgba(9, 9, 11, 0.65) 100%), linear-gradient(to right, var(--primary), var(--accent));
+  box-shadow: var(--shadow-elevated);
+}
+
+.gradient-shell-inner {
+  padding: 18px 20px;
+  border-radius: calc(var(--radius) - 1px);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: none;
+  box-sizing: border-box;
+}
+
+.dark .gradient-shell-inner {
+  background: rgba(35, 33, 44, 0.92);
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: rgba(241, 254, 200, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(241, 254, 200, 0.25);
+}
+
+.dark .glass {
+  background: rgba(35, 33, 44, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(241, 254, 200, 0.05);
+}
+
+.glass-card {
+  background: rgba(241, 254, 200, 0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(241, 254, 200, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(35, 33, 44, 0.04);
+}
+
+.dark .glass-card {
+  background: rgba(35, 33, 44, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(241, 254, 200, 0.04);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Ensure headers and sidebars display correct transparent background according to active theme */
+header {
+  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 40%, transparent) !important;
+}
+
+aside {
+  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 40%, transparent) !important;
+}
+
+/* Background Grids */
+.bg-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(128, 128, 128, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(128, 128, 128, 0.05) 1px, transparent 1px);
+}
+.dark .bg-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
