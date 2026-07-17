@@ -42,6 +42,21 @@ export interface Project {
   createdAt: string;
 }
 
+export interface ProjectIdea {
+  id: string;
+  title: string;
+  description: string;
+  requiredSkills: string[];
+  teamSizeRequirement: number;
+  techStack: string[];
+  domain: string;
+  visibility: 'public' | 'private';
+  ownerId: string;
+  ownerName: string;
+  ownerAvatar: string;
+  createdAt: string;
+}
+
 export interface TaskAttachment {
   name: string;
   size: string;
@@ -244,6 +259,37 @@ const defaultProjects: Project[] = [
   }
 ];
 
+const defaultProjectIdeas: ProjectIdea[] = [
+  {
+    id: 'idea_1',
+    title: 'Smart Campus Parking Assistant',
+    description: 'An IoT-based campus parking slot detector that shows real-time occupancy maps using computer vision and edge computing nodes.',
+    requiredSkills: ['Computer Vision', 'Python', 'IoT Programming', 'Tailwind CSS'],
+    teamSizeRequirement: 3,
+    techStack: ['Python', 'OpenCV', 'Raspberry Pi', 'SvelteKit'],
+    domain: 'Internet of Things (IoT)',
+    visibility: 'public',
+    ownerId: 'student_alex',
+    ownerName: 'Alex Mercer',
+    ownerAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex',
+    createdAt: '2026-07-15T12:00:00.000Z'
+  },
+  {
+    id: 'idea_2',
+    title: 'Blockchain Academic Credential Verifier',
+    description: 'A platform to issue and securely verify university graduation certificates, preventing fraud and making resume verification instant.',
+    requiredSkills: ['Solidity', 'Web3.js', 'Cryptography', 'Svelte'],
+    teamSizeRequirement: 4,
+    techStack: ['Ethereum', 'Solidity', 'Hardhat', 'TypeScript', 'SvelteKit'],
+    domain: 'Blockchain / Cryptography',
+    visibility: 'public',
+    ownerId: 'student_sarah',
+    ownerName: 'Sarah Chen',
+    ownerAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sarah',
+    createdAt: '2026-07-16T14:30:00.000Z'
+  }
+];
+
 const defaultTasks: Task[] = [
   {
     id: 'task_1',
@@ -443,6 +489,14 @@ class DatabaseService {
     this.setStorage('files', files);
   }
 
+  getProjectIdeas(): ProjectIdea[] {
+    return this.getStorage('project_ideas', defaultProjectIdeas);
+  }
+
+  saveProjectIdeas(ideas: ProjectIdea[]): void {
+    this.setStorage('project_ideas', ideas);
+  }
+
   getNotifications(userId: string): Notification[] {
     const notifs = this.getStorage('notifications', defaultNotifications);
     return notifs.filter(n => n.userId === userId);
@@ -502,6 +556,54 @@ class DatabaseService {
       return projects[idx];
     }
     throw new Error('Project not found');
+  }
+
+  // Project Ideas CRUD
+  createProjectIdea(
+    title: string,
+    description: string,
+    requiredSkills: string[],
+    teamSizeRequirement: number,
+    techStack: string[],
+    domain: string,
+    visibility: 'public' | 'private',
+    owner: User
+  ): ProjectIdea {
+    const ideas = this.getProjectIdeas();
+    const newIdea: ProjectIdea = {
+      id: `idea_${Date.now()}`,
+      title,
+      description,
+      requiredSkills,
+      teamSizeRequirement,
+      techStack,
+      domain,
+      visibility,
+      ownerId: owner.id,
+      ownerName: owner.name,
+      ownerAvatar: owner.avatar,
+      createdAt: new Date().toISOString()
+    };
+    ideas.push(newIdea);
+    this.saveProjectIdeas(ideas);
+    return newIdea;
+  }
+
+  updateProjectIdea(id: string, data: Partial<ProjectIdea>): ProjectIdea {
+    const ideas = this.getProjectIdeas();
+    const idx = ideas.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      ideas[idx] = { ...ideas[idx], ...data } as ProjectIdea;
+      this.saveProjectIdeas(ideas);
+      return ideas[idx];
+    }
+    throw new Error('Project Idea not found');
+  }
+
+  deleteProjectIdea(id: string): void {
+    const ideas = this.getProjectIdeas();
+    const filtered = ideas.filter(i => i.id !== id);
+    this.saveProjectIdeas(filtered);
   }
 
   inviteToProject(projectId: string, email: string): void {
