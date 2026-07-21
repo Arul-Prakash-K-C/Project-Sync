@@ -20,7 +20,8 @@
     Grid,
     CheckSquare,
     ChevronLeft,
-    Check
+    Check,
+    Lightbulb
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
 
@@ -73,6 +74,7 @@
   const studentLinks = [
     { href: '/dashboard/student', label: 'Overview', icon: Grid },
     { href: '/dashboard/student/team-finder', label: 'Team Finder', icon: Compass },
+    { href: '/dashboard/student/ideas', label: 'Project Ideas', icon: Lightbulb },
     { href: '/dashboard/student/profile', label: 'My Profile', icon: GraduationCap }
   ];
 
