@@ -1,10 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
 
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Newsreader', serif;
+  --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Plus Jakarta Sans', sans-serif;
   
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -42,48 +42,48 @@
 }
 
 :root {
-  --background: #F1FEC8; /* Vanilla */
-  --foreground: #23212C; /* Cosmic */
+  --background: #fafafa;
+  --foreground: #18181b;
   --card: #ffffff;
-  --card-foreground: #23212C;
+  --card-foreground: #18181b;
   --popover: #ffffff;
-  --popover-foreground: #23212C;
-  --primary: #36255C; /* Dark Violet/Cosmic Accent */
-  --primary-foreground: #F1FEC8;
-  --secondary: #EAF3CE; /* Soft light vanilla tint */
-  --secondary-foreground: #23212C;
-  --muted: #E2EBBF;
-  --muted-foreground: #5B643E;
-  --accent: #9A7AF1; /* Lavender-purple accent */
+  --popover-foreground: #18181b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #e11d48;
   --accent-foreground: #ffffff;
   --destructive: hsl(0 84.2% 60.2%);
   --destructive-foreground: hsl(210 20% 98%);
-  --border: #D8E2B5;
-  --input: #D8E2B5;
-  --ring: #36255C;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #18181b;
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: #23212C; /* Cosmic */
-  --foreground: #F1FEC8; /* Vanilla */
-  --card: #2B2935; /* Slightly lighter cosmic surface */
-  --card-foreground: #F1FEC8;
-  --popover: #23212C;
-  --popover-foreground: #F1FEC8;
-  --primary: #F1FEC8; /* Vanilla as primary accent */
-  --primary-foreground: #23212C;
-  --secondary: #302E3B; /* Lighter cosmic for secondary surfaces */
-  --secondary-foreground: #F1FEC8;
-  --muted: #3B3848;
-  --muted-foreground: #9C99A8;
-  --accent: #7C5DF9; /* Glowing cosmic purple/violet */
-  --accent-foreground: #ffffff;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #fb7185;
+  --accent-foreground: #18181b;
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(210 20% 98%);
-  --border: #3A3747;
-  --input: #3A3747;
-  --ring: #F1FEC8;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #fafafa;
 }
 
 * {
@@ -116,7 +116,7 @@ body {
 
 /* Explicit display font rule */
 .font-display {
-  font-family: 'Newsreader', Georgia, Cambria, 'Times New Roman', Times, serif !important;
+  font-family: var(--font-display) !important;
 }
 
 /* Gradient border shell */
@@ -137,36 +137,36 @@ body {
 }
 
 .dark .gradient-shell-inner {
-  background: rgba(35, 33, 44, 0.92);
+  background: rgba(24, 24, 27, 0.92);
 }
 
 /* Glassmorphism Classes */
 .glass {
-  background: rgba(241, 254, 200, 0.45);
+  background: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(241, 254, 200, 0.25);
+  border: 1px solid rgba(228, 228, 231, 0.4);
 }
 
 .dark .glass {
-  background: rgba(35, 33, 44, 0.45);
+  background: rgba(9, 9, 11, 0.45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(241, 254, 200, 0.05);
+  border: 1px solid rgba(39, 39, 42, 0.3);
 }
 
 .glass-card {
-  background: rgba(241, 254, 200, 0.5);
+  background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(241, 254, 200, 0.3);
-  box-shadow: 0 8px 32px 0 rgba(35, 33, 44, 0.04);
+  border: 1px solid rgba(228, 228, 231, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(24, 24, 27, 0.03);
 }
 
 .dark .glass-card {
-  background: rgba(35, 33, 44, 0.7);
+  background: rgba(24, 24, 27, 0.7);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(241, 254, 200, 0.04);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(39, 39, 42, 0.2);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 /* Ensure headers and sidebars display correct transparent background according to active theme */

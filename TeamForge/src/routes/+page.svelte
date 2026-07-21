@@ -110,7 +110,7 @@
         time += 0.012;
 
         const isDarkTheme = document.documentElement.classList.contains('dark');
-        const particleColor = isDarkTheme ? '241, 254, 200' : '35, 33, 44'; // Vanilla vs Cosmic
+        const particleColor = isDarkTheme ? '250, 250, 250' : '24, 24, 27'; // Zinc Light vs Zinc Dark
 
         particles.forEach(p => {
           // Slow breathing pulse
