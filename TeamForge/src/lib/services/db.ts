@@ -42,6 +42,15 @@ export interface Project {
   createdAt: string;
 }
 
+export interface IdeaAdvice {
+  id: string;
+  facultyId: string;
+  facultyName: string;
+  facultyAvatar: string;
+  feedback: string;
+  createdAt: string;
+}
+
 export interface ProjectIdea {
   id: string;
   title: string;
@@ -55,6 +64,9 @@ export interface ProjectIdea {
   ownerName: string;
   ownerAvatar: string;
   createdAt: string;
+  invitedTeammates: string[]; // student user IDs
+  advisingFaculty?: string; // single faculty user ID
+  advice?: IdeaAdvice[];
 }
 
 export interface TaskAttachment {
@@ -203,6 +215,39 @@ const defaultUsers: User[] = [
     availability: true
   },
   {
+    id: 'faculty_julian',
+    name: 'Prof. Julian Brooks',
+    email: 'julian@teamforge.edu',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Julian',
+    role: 'faculty',
+    department: 'Software Engineering',
+    skills: ['Software Design', 'Architecture', 'Quality Assurance'],
+    interests: ['Software Engineering', 'System Design'],
+    availability: true
+  },
+  {
+    id: 'faculty_alistair',
+    name: 'Dr. Alistair Vance',
+    email: 'alistair@teamforge.edu',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alistair',
+    role: 'faculty',
+    department: 'Information Systems',
+    skills: ['System Analysis', 'Business Processes', 'IT Strategy'],
+    interests: ['Enterprise Systems', 'Business Analysis'],
+    availability: true
+  },
+  {
+    id: 'faculty_helena',
+    name: 'Dr. Helena Rostova',
+    email: 'helena@teamforge.edu',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Helena',
+    role: 'faculty',
+    department: 'Data Science & Analytics',
+    skills: ['Advanced Analytics', 'Predictive Modeling', 'Big Data'],
+    interests: ['Data Analytics', 'Big Data Engineering'],
+    availability: true
+  },
+  {
     id: 'admin_sys',
     name: 'Admin System',
     email: 'admin@teamforge.edu',
@@ -272,7 +317,10 @@ const defaultProjectIdeas: ProjectIdea[] = [
     ownerId: 'student_alex',
     ownerName: 'Alex Mercer',
     ownerAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex',
-    createdAt: '2026-07-15T12:00:00.000Z'
+    createdAt: '2026-07-15T12:00:00.000Z',
+    invitedTeammates: ['student_sarah'],
+    advisingFaculty: 'faculty_evelyn',
+    advice: []
   },
   {
     id: 'idea_2',
@@ -286,7 +334,10 @@ const defaultProjectIdeas: ProjectIdea[] = [
     ownerId: 'student_sarah',
     ownerName: 'Sarah Chen',
     ownerAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sarah',
-    createdAt: '2026-07-16T14:30:00.000Z'
+    createdAt: '2026-07-16T14:30:00.000Z',
+    invitedTeammates: [],
+    advisingFaculty: 'faculty_evelyn',
+    advice: []
   }
 ];
 
@@ -567,7 +618,9 @@ class DatabaseService {
     techStack: string[],
     domain: string,
     visibility: 'public' | 'private',
-    owner: User
+    owner: User,
+    invitedTeammates: string[] = [],
+    advisingFaculty?: string
   ): ProjectIdea {
     const ideas = this.getProjectIdeas();
     const newIdea: ProjectIdea = {
@@ -582,10 +635,44 @@ class DatabaseService {
       ownerId: owner.id,
       ownerName: owner.name,
       ownerAvatar: owner.avatar,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      invitedTeammates,
+      advisingFaculty,
+      advice: []
     };
     ideas.push(newIdea);
     this.saveProjectIdeas(ideas);
+
+    // Send notifications to invited teammates
+    const notifs = this.getStorage('notifications', defaultNotifications);
+    invitedTeammates.forEach(uid => {
+      notifs.push({
+        id: `notif_${Date.now()}_${uid}`,
+        userId: uid,
+        title: 'Project Idea Collaboration Invite',
+        description: `${owner.name} invited you to collaborate on the project idea "${title}".`,
+        type: 'invite',
+        read: false,
+        createdAt: new Date().toISOString(),
+        actionUrl: `/dashboard/student/ideas`
+      });
+    });
+
+    // Send notifications to advising faculty
+    if (advisingFaculty) {
+      notifs.push({
+        id: `notif_${Date.now()}_${advisingFaculty}`,
+        userId: advisingFaculty,
+        title: 'Project Advice Requested',
+        description: `${owner.name} requested advice on the project idea "${title}".`,
+        type: 'discussion',
+        read: false,
+        createdAt: new Date().toISOString(),
+        actionUrl: `/dashboard/faculty`
+      });
+    }
+
+    this.setStorage('notifications', notifs);
     return newIdea;
   }
 
@@ -593,9 +680,96 @@ class DatabaseService {
     const ideas = this.getProjectIdeas();
     const idx = ideas.findIndex(i => i.id === id);
     if (idx !== -1) {
+      const oldIdea = ideas[idx];
+      const oldInvited = oldIdea.invitedTeammates || [];
+      const oldFaculty = oldIdea.advisingFaculty;
+
+      const newInvited = data.invitedTeammates || [];
+      const newFaculty = data.advisingFaculty;
+
+      const newlyInvited = newInvited.filter(uid => !oldInvited.includes(uid));
+      const newlyFacultyRequested = newFaculty && newFaculty !== oldFaculty ? [newFaculty] : [];
+
       ideas[idx] = { ...ideas[idx], ...data } as ProjectIdea;
       this.saveProjectIdeas(ideas);
+
+      const notifs = this.getStorage('notifications', defaultNotifications);
+      let updatedNotifs = false;
+
+      if (newlyInvited.length > 0 || newlyFacultyRequested.length > 0) {
+        const ownerName = ideas[idx].ownerName;
+        const ideaTitle = ideas[idx].title;
+
+        newlyInvited.forEach(uid => {
+          notifs.push({
+            id: `notif_${Date.now()}_${uid}`,
+            userId: uid,
+            title: 'Project Idea Collaboration Invite',
+            description: `${ownerName} invited you to collaborate on the project idea "${ideaTitle}".`,
+            type: 'invite',
+            read: false,
+            createdAt: new Date().toISOString(),
+            actionUrl: `/dashboard/student/ideas`
+          });
+        });
+
+        newlyFacultyRequested.forEach(uid => {
+          notifs.push({
+            id: `notif_${Date.now()}_${uid}`,
+            userId: uid,
+            title: 'Project Advice Requested',
+            description: `${ownerName} requested advice on the project idea "${ideaTitle}".`,
+            type: 'discussion',
+            read: false,
+            createdAt: new Date().toISOString(),
+            actionUrl: `/dashboard/faculty`
+          });
+        });
+
+        updatedNotifs = true;
+      }
+
+      if (updatedNotifs) {
+        this.setStorage('notifications', notifs);
+      }
+
       return ideas[idx];
+    }
+    throw new Error('Project Idea not found');
+  }
+
+  addIdeaAdvice(ideaId: string, faculty: User, feedback: string): IdeaAdvice {
+    const ideas = this.getProjectIdeas();
+    const idx = ideas.findIndex(i => i.id === ideaId);
+    if (idx !== -1) {
+      if (!ideas[idx].advice) {
+        ideas[idx].advice = [];
+      }
+      const newAdvice: IdeaAdvice = {
+        id: `advice_${Date.now()}`,
+        facultyId: faculty.id,
+        facultyName: faculty.name,
+        facultyAvatar: faculty.avatar,
+        feedback,
+        createdAt: new Date().toISOString()
+      };
+      ideas[idx].advice!.push(newAdvice);
+      this.saveProjectIdeas(ideas);
+
+      const notifs = this.getStorage('notifications', defaultNotifications);
+      notifs.push({
+        id: `notif_${Date.now()}`,
+        userId: ideas[idx].ownerId,
+        title: 'New Advice on Project Idea',
+        description: `${faculty.name} left advice on your idea "${ideas[idx].title}".`,
+        type: 'discussion',
+        read: false,
+        createdAt: new Date().toISOString(),
+        actionUrl: `/dashboard/student/ideas`
+      });
+      this.setStorage('notifications', notifs);
+
+      return newAdvice;
     }
     throw new Error('Project Idea not found');
   }
