@@ -25,6 +25,61 @@ export interface Milestone {
   title: string;
   deadline: string;
   completed: boolean;
+  locked?: boolean;
+  extendedDeadline?: string;
+}
+
+export interface WeeklyReport {
+  id: string;
+  projectId: string;
+  weekNumber: number;
+  submittedBy: string;
+  submittedByName: string;
+  submittedAt: string;
+  achievements: string;
+  plannedTasks: string;
+  blockers: string;
+  status: 'pending' | 'approved' | 'revision_requested';
+  feedback: string;
+}
+
+export interface CategorizedFeedback {
+  id: string;
+  projectId: string;
+  category: 'code' | 'documentation' | 'ui' | 'testing' | 'presentation';
+  feedbackText: string;
+  facultyName: string;
+  createdAt: string;
+}
+
+export interface Meeting {
+  id: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  date: string;
+  time: string;
+  linkOrLocation: string;
+  status: 'scheduled' | 'cancelled';
+  createdAt: string;
+}
+
+export interface Announcement {
+  id: string;
+  targetType: 'team' | 'all';
+  targetIds: string[]; // project ids
+  title: string;
+  content: string;
+  facultyName: string;
+  createdAt: string;
+}
+
+export interface FacultyNote {
+  id: string;
+  projectId: string;
+  studentId?: string;
+  content: string;
+  updatedAt: string;
 }
 
 export interface Project {
@@ -787,6 +842,165 @@ class DatabaseService {
     files.push(newFile);
     this.saveFiles(files);
     return newFile;
+  }
+
+  getWeeklyReports(projectId?: string): WeeklyReport[] {
+    const reports = this.getStorage<WeeklyReport[]>('weekly_reports', []);
+    return projectId ? reports.filter(r => r.projectId === projectId) : reports;
+  }
+
+  saveWeeklyReports(reports: WeeklyReport[]): void {
+    this.setStorage('weekly_reports', reports);
+  }
+
+  submitWeeklyReport(projectId: string, weekNumber: number, userId: string, userName: string, achievements: string, plannedTasks: string, blockers: string): WeeklyReport {
+    const reports = this.getWeeklyReports();
+    const newReport: WeeklyReport = {
+      id: `rep_${Date.now()}`,
+      projectId,
+      weekNumber,
+      submittedBy: userId,
+      submittedByName: userName,
+      submittedAt: new Date().toISOString(),
+      achievements,
+      plannedTasks,
+      blockers,
+      status: 'pending',
+      feedback: ''
+    };
+    reports.push(newReport);
+    this.saveWeeklyReports(reports);
+    return newReport;
+  }
+
+  updateWeeklyReportStatus(reportId: string, status: WeeklyReport['status'], feedback: string): WeeklyReport {
+    const reports = this.getWeeklyReports();
+    const idx = reports.findIndex(r => r.id === reportId);
+    if (idx !== -1) {
+      reports[idx] = { ...reports[idx], status, feedback };
+      this.saveWeeklyReports(reports);
+      return reports[idx];
+    }
+    throw new Error('Report not found');
+  }
+
+  getFeedback(projectId?: string): CategorizedFeedback[] {
+    const feedbackList = this.getStorage<CategorizedFeedback[]>('categorized_feedback', []);
+    return projectId ? feedbackList.filter(f => f.projectId === projectId) : feedbackList;
+  }
+
+  saveFeedback(feedbackList: CategorizedFeedback[]): void {
+    this.setStorage('categorized_feedback', feedbackList);
+  }
+
+  addFeedback(projectId: string, category: CategorizedFeedback['category'], feedbackText: string, facultyName: string): CategorizedFeedback {
+    const feedbackList = this.getFeedback();
+    const newFeedback: CategorizedFeedback = {
+      id: `fb_${Date.now()}`,
+      projectId,
+      category,
+      feedbackText,
+      facultyName,
+      createdAt: new Date().toISOString()
+    };
+    feedbackList.push(newFeedback);
+    this.saveFeedback(feedbackList);
+    return newFeedback;
+  }
+
+  getMeetings(projectId?: string): Meeting[] {
+    const meetings = this.getStorage<Meeting[]>('meetings', []);
+    return projectId ? meetings.filter(m => m.projectId === projectId) : meetings;
+  }
+
+  saveMeetings(meetings: Meeting[]): void {
+    this.setStorage('meetings', meetings);
+  }
+
+  scheduleMeeting(projectId: string, projectName: string, title: string, date: string, time: string, linkOrLocation: string): Meeting {
+    const meetings = this.getMeetings();
+    const newMeeting: Meeting = {
+      id: `meet_${Date.now()}`,
+      projectId,
+      projectName,
+      title,
+      date,
+      time,
+      linkOrLocation,
+      status: 'scheduled',
+      createdAt: new Date().toISOString()
+    };
+    meetings.push(newMeeting);
+    this.saveMeetings(meetings);
+    return newMeeting;
+  }
+
+  updateMeeting(meetingId: string, data: Partial<Meeting>): Meeting {
+    const meetings = this.getMeetings();
+    const idx = meetings.findIndex(m => m.id === meetingId);
+    if (idx !== -1) {
+      meetings[idx] = { ...meetings[idx], ...data } as Meeting;
+      this.saveMeetings(meetings);
+      return meetings[idx];
+    }
+    throw new Error('Meeting not found');
+  }
+
+  getAnnouncements(projectId?: string): Announcement[] {
+    const announcements = this.getStorage<Announcement[]>('announcements', []);
+    if (!projectId) return announcements;
+    return announcements.filter(a => a.targetType === 'all' || a.targetIds.includes(projectId));
+  }
+
+  saveAnnouncements(announcements: Announcement[]): void {
+    this.setStorage('announcements', announcements);
+  }
+
+  createAnnouncement(targetType: 'all' | 'team', targetIds: string[], title: string, content: string, facultyName: string): Announcement {
+    const announcements = this.getAnnouncements();
+    const newAnnouncement: Announcement = {
+      id: `ann_${Date.now()}`,
+      targetType,
+      targetIds,
+      title,
+      content,
+      facultyName,
+      createdAt: new Date().toISOString()
+    };
+    announcements.push(newAnnouncement);
+    this.saveAnnouncements(announcements);
+    return newAnnouncement;
+  }
+
+  getFacultyNotes(projectId?: string): FacultyNote[] {
+    const notes = this.getStorage<FacultyNote[]>('faculty_notes', []);
+    return projectId ? notes.filter(n => n.projectId === projectId) : notes;
+  }
+
+  saveFacultyNotes(notes: FacultyNote[]): void {
+    this.setStorage('faculty_notes', notes);
+  }
+
+  saveFacultyNote(projectId: string, studentId: string | undefined, content: string): FacultyNote {
+    const notes = this.getFacultyNotes();
+    const idx = notes.findIndex(n => n.projectId === projectId && n.studentId === studentId);
+    if (idx !== -1) {
+      notes[idx].content = content;
+      notes[idx].updatedAt = new Date().toISOString();
+      this.saveFacultyNotes(notes);
+      return notes[idx];
+    } else {
+      const newNote: FacultyNote = {
+        id: `note_${Date.now()}`,
+        projectId,
+        studentId,
+        content,
+        updatedAt: new Date().toISOString()
+      };
+      notes.push(newNote);
+      this.saveFacultyNotes(notes);
+      return newNote;
+    }
   }
 }
 
