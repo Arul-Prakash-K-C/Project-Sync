@@ -2,7 +2,17 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Task, type Thread, type ProjectFile, type Milestone } from '$lib/services/db';
+  import { 
+    db, 
+    type Project, 
+    type Task, 
+    type Thread, 
+    type ProjectFile, 
+    type Milestone,
+    type WeeklyReport,
+    type CategorizedFeedback,
+    type Meeting
+  } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { 
     FolderKanban, 
@@ -16,7 +26,11 @@
     Send,
     MessageSquare,
     MessageCircle,
-    FolderPlus
+    FolderPlus,
+    Clock,
+    FileCheck,
+    MessageSquareQuote,
+    Network
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
@@ -30,6 +44,13 @@
   let tasks = $state<Task[]>([]);
   let threads = $state<Thread[]>([]);
   let files = $state<ProjectFile[]>([]);
+  let weeklyReports = $state<WeeklyReport[]>([]);
+  let feedbackList = $state<CategorizedFeedback[]>([]);
+  let meetings = $state<Meeting[]>([]);
+
+  const milestoneProg = $derived(project && project.milestones.length > 0 ? Math.round((project.milestones.filter(m => m.completed).length / project.milestones.length) * 100) : 0);
+  const approvedReps = $derived(weeklyReports.filter(r => r.status === 'approved').length);
+  const allDone = $derived(project && project.milestones.length > 0 && project.milestones.every(m => m.completed));
 
   let activeTab = $state('overview');
 
@@ -63,6 +84,13 @@
   let uploadFileSize = $state('1.5 MB');
   let uploadFileType = $state('pdf');
 
+  // Weekly Report Forms
+  let reportWeekNumber = $state(1);
+  let reportAchievements = $state('');
+  let reportPlannedTasks = $state('');
+  let reportBlockers = $state('');
+  let showReportSubmitForm = $state(false);
+
   onMount(() => {
     loadData();
   });
@@ -78,6 +106,33 @@
       tasks = db.getTasks().filter(t => t.projectId === projectId);
       threads = db.getThreads().filter(t => t.projectId === projectId);
       files = db.getFiles().filter(f => f.projectId === projectId);
+      weeklyReports = db.getWeeklyReports(projectId);
+      feedbackList = db.getFeedback(projectId);
+      meetings = db.getMeetings(projectId);
+    }
+  }
+
+  function handleWeeklyReportSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    if (!project || !auth.user) return;
+    try {
+      db.submitWeeklyReport(
+        project.id,
+        reportWeekNumber,
+        auth.user.id,
+        auth.user.name,
+        reportAchievements,
+        reportPlannedTasks,
+        reportBlockers
+      );
+      toast.success('Weekly report submitted successfully!');
+      showReportSubmitForm = false;
+      reportAchievements = '';
+      reportPlannedTasks = '';
+      reportBlockers = '';
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit report');
     }
   }
 
@@ -239,7 +294,9 @@
         { value: 'overview', label: 'Overview & Milestones' },
         { value: 'kanban', label: 'Kanban Tasks' },
         { value: 'discussions', label: 'Discussion Board' },
-        { value: 'files', label: 'File Manager' }
+        { value: 'files', label: 'File Manager' },
+        { value: 'weekly-reports', label: 'Weekly Reports' },
+        { value: 'feedback-timeline', label: 'Feedback & Timeline' }
       ]}
       bind:active={activeTab}
     />
@@ -330,237 +387,479 @@
         </Card>
       </div>
 
-    {:else}
-      {#if activeTab === 'kanban'}
-        <div class="flex flex-col gap-4">
-          <div class="flex justify-between items-center">
-            <h3 class="text-lg font-bold text-foreground">Kanban Tasks</h3>
-            <Button variant="primary" size="sm" onclick={() => newTaskDialogOpen = true}>
+    {:else if activeTab === 'kanban'}
+      <div class="flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold text-foreground">Kanban Tasks</h3>
+          <Button variant="primary" size="sm" onclick={() => newTaskDialogOpen = true}>
+            <Plus class="w-3.5 h-3.5" />
+            New Task
+          </Button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
+          {#each ['todo', 'inprogress', 'review', 'completed'] as col}
+            <div class="flex flex-col gap-3 p-3 bg-muted/30 border rounded-2xl min-h-[500px]">
+              <div class="flex items-center justify-between pb-1 border-b border-border">
+                <span class="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                  {col === 'todo' ? 'To Do' : col === 'inprogress' ? 'In Progress' : col === 'review' ? 'Review' : 'Completed'}
+                </span>
+                <Badge variant="secondary" class="text-3xs text-foreground">
+                  {tasks.filter(t => t.column === col).length}
+                </Badge>
+              </div>
+
+              <div class="flex-1 flex flex-col gap-3 overflow-y-auto">
+                {#each tasks.filter(t => t.column === col) as t}
+                  <div 
+                    onclick={() => viewTaskDetails(t)}
+                    onkeydown={(e) => e.key === 'Enter' && viewTaskDetails(t)}
+                    role="button"
+                    tabindex="0"
+                    class="p-4 bg-card border border-border hover:border-primary/30 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between h-40 group text-left"
+                  >
+                    <div>
+                      <div class="flex justify-between items-start gap-2">
+                        <span class="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{t.title}</span>
+                        <Badge variant={t.priority === 'high' ? 'danger' : t.priority === 'medium' ? 'warning' : 'info'} class="text-[9px] px-1.5 py-0">
+                          {t.priority}
+                        </Badge>
+                      </div>
+                      <p class="text-[11px] text-muted-foreground mt-2 line-clamp-2 leading-relaxed">{t.description}</p>
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-2xs">
+                      <span class="text-muted-foreground flex items-center gap-1 font-semibold">
+                        <Calendar class="w-3 h-3" />
+                        {t.deadline}
+                      </span>
+                      
+                      <div class="flex items-center gap-2">
+                        <select 
+                          value={t.column} 
+                          onclick={(e) => e.stopPropagation()}
+                          onchange={(e) => updateTaskColumn(t.id, (e.target as HTMLSelectElement).value as any)}
+                          class="px-1.5 py-0.5 rounded border border-border bg-background text-3xs font-semibold text-muted-foreground focus:outline-none"
+                          aria-label="Move column"
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="inprogress">In Dev</option>
+                          <option value="review">Review</option>
+                          <option value="completed">Done</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+
+    {:else if activeTab === 'discussions'}
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <Card class="lg:col-span-2 flex flex-col gap-4">
+          <div class="flex justify-between items-center border-b border-border/40 pb-3">
+            <h3 class="text-lg font-bold text-foreground">Discussions Space</h3>
+            <Button variant="outline" size="sm" onclick={() => showThreadForm = !showThreadForm}>
               <Plus class="w-3.5 h-3.5" />
-              New Task
+              Start Thread
             </Button>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
-            {#each ['todo', 'inprogress', 'review', 'completed'] as col}
-              <div class="flex flex-col gap-3 p-3 bg-muted/30 border rounded-2xl min-h-[500px]">
-                <div class="flex items-center justify-between pb-1 border-b border-border">
-                  <span class="text-xs font-black uppercase tracking-wider text-muted-foreground">
-                    {col === 'todo' ? 'To Do' : col === 'inprogress' ? 'In Progress' : col === 'review' ? 'Review' : 'Completed'}
-                  </span>
-                  <Badge variant="secondary" class="text-3xs text-foreground">
-                    {tasks.filter(t => t.column === col).length}
-                  </Badge>
+          {#if showThreadForm}
+            <form onsubmit={handleCreateThread} class="p-4 border border-border/80 rounded-2xl flex flex-col gap-3 bg-muted/10">
+              <div class="flex flex-col gap-1.5">
+                <label for="th-title" class="text-xs font-semibold text-foreground">Thread Title</label>
+                <input 
+                  id="th-title"
+                  type="text" 
+                  placeholder="e.g. Design assets link" 
+                  bind:value={threadTitle}
+                  required
+                  class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label for="th-content" class="text-xs font-semibold text-foreground">Content Details</label>
+                <textarea 
+                  id="th-content"
+                  placeholder="Discuss ideas..." 
+                  bind:value={threadContent}
+                  required
+                  rows="4"
+                  class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                ></textarea>
+              </div>
+              <div class="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onclick={() => showThreadForm = false}>Cancel</Button>
+                <Button type="submit" variant="primary" size="sm">Publish Thread</Button>
+              </div>
+            </form>
+          {/if}
+
+          <div class="flex flex-col gap-3">
+            {#each threads as th}
+              <div 
+                onclick={() => selectedThread = th}
+                onkeydown={(e) => e.key === 'Enter' && (selectedThread = th)}
+                role="button"
+                tabindex="0"
+                class="p-4 border rounded-xl hover:border-primary/20 hover:bg-muted/5 transition-all cursor-pointer flex justify-between items-center text-left"
+              >
+                <div class="flex flex-col gap-1">
+                  <span class="text-sm font-bold text-foreground hover:text-primary transition-colors">{th.title}</span>
+                  <div class="flex items-center gap-2 text-2xs text-muted-foreground mt-1">
+                    <span>Posted by: {th.authorName}</span>
+                    <span>•</span>
+                    <span>{new Date(th.createdAt).toLocaleDateString()}</span>
+                  </div>
                 </div>
 
-                <div class="flex-1 flex flex-col gap-3 overflow-y-auto">
-                  {#each tasks.filter(t => t.column === col) as t}
-                    <div 
-                      onclick={() => viewTaskDetails(t)}
-                      onkeydown={(e) => e.key === 'Enter' && viewTaskDetails(t)}
-                      role="button"
-                      tabindex="0"
-                      class="p-4 bg-card border border-border hover:border-primary/30 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between h-40 group text-left"
-                    >
-                      <div>
-                        <div class="flex justify-between items-start gap-2">
-                          <span class="text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">{t.title}</span>
-                          <Badge variant={t.priority === 'high' ? 'danger' : t.priority === 'medium' ? 'warning' : 'info'} class="text-[9px] px-1.5 py-0">
-                            {t.priority}
-                          </Badge>
-                        </div>
-                        <p class="text-[11px] text-muted-foreground mt-2 line-clamp-2 leading-relaxed">{t.description}</p>
-                      </div>
+                <div class="flex items-center gap-1.5 text-2xs text-muted-foreground font-bold">
+                  <MessageCircle class="w-4 h-4" />
+                  {th.replies.length} replies
+                </div>
+              </div>
+            {:else}
+              <div class="py-12 text-center text-xs text-muted-foreground italic">No discussion threads found.</div>
+            {/each}
+          </div>
+        </Card>
 
-                      <div class="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-2xs">
-                        <span class="text-muted-foreground flex items-center gap-1 font-semibold">
-                          <Calendar class="w-3 h-3" />
-                          {t.deadline}
-                        </span>
-                        
-                        <div class="flex items-center gap-2">
-                          <select 
-                            value={t.column} 
-                            onclick={(e) => e.stopPropagation()}
-                            onchange={(e) => updateTaskColumn(t.id, (e.target as HTMLSelectElement).value as any)}
-                            class="px-1.5 py-0.5 rounded border border-border bg-background text-3xs font-semibold text-muted-foreground focus:outline-none"
-                            aria-label="Move column"
-                          >
-                            <option value="todo">To Do</option>
-                            <option value="inprogress">In Dev</option>
-                            <option value="review">Review</option>
-                            <option value="completed">Done</option>
-                          </select>
-                        </div>
-                      </div>
+        <Card>
+          {#if selectedThread}
+            <div class="flex flex-col gap-4">
+              <div class="flex justify-between items-start border-b border-border/40 pb-2">
+                <div class="flex flex-col">
+                  <span class="text-sm font-extrabold text-foreground">{selectedThread.title}</span>
+                  <span class="text-3xs text-muted-foreground font-semibold mt-1">Started by: {selectedThread.authorName}</span>
+                </div>
+                <button onclick={() => selectedThread = null} class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">Close</button>
+              </div>
+
+              <p class="text-xs text-muted-foreground leading-relaxed p-3 bg-muted/10 border rounded-xl">{selectedThread.content}</p>
+
+              <div class="flex flex-col gap-3 mt-2 max-h-56 overflow-y-auto pr-1">
+                {#each selectedThread.replies as rep}
+                  <div class="p-2.5 border rounded-lg bg-card flex flex-col gap-1">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold text-foreground">{rep.authorName}</span>
+                      <span class="text-[9px] text-muted-foreground">{new Date(rep.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     </div>
-                  {/each}
+                    <p class="text-xs text-muted-foreground">{rep.content}</p>
+                  </div>
+                {/each}
+              </div>
+
+              <form onsubmit={handleCreateReply} class="flex gap-2 mt-2">
+                <input 
+                  type="text" 
+                  placeholder="Write a reply..." 
+                  bind:value={replyText}
+                  required
+                  class="flex-1 px-3 py-1.5 rounded-lg border border-border bg-background text-xs text-foreground focus:outline-none"
+                />
+                <Button type="submit" variant="primary" size="sm" class="h-8.5 w-8.5 rounded-lg p-0">
+                  <Send class="w-3.5 h-3.5" />
+                </Button>
+              </form>
+            </div>
+          {:else}
+            <div class="h-44 flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
+              Select a discussion thread on the left to read replies.
+            </div>
+          {/if}
+        </Card>
+      </div>
+
+    {:else if activeTab === 'files'}
+      <div class="flex flex-col gap-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold text-foreground">File Library</h3>
+          <Button variant="outline" size="sm" onclick={() => fileDialogOpen = true}>
+            <FolderPlus class="w-4 h-4" />
+            Upload Mock File
+          </Button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
+          {#each files as f}
+            <Card hoverable class="p-4 flex flex-col justify-between h-44 relative text-left">
+              <div>
+                <div class="flex gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                    <FileText class="w-5 h-5" />
+                  </div>
+                  <div class="flex flex-col min-w-0">
+                    <span class="text-xs font-bold text-foreground truncate">{f.name}</span>
+                    <span class="text-[10px] text-muted-foreground mt-0.5">{f.size} • version {f.version}</span>
+                  </div>
                 </div>
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-border flex items-center justify-between text-3xs text-muted-foreground">
+                <span>Uploaded by: {f.uploadedByName}</span>
+                <a href="#download" onclick={(e) => (e.preventDefault(), toast.success(`Downloaded: ${f.name} (Simulated)`))}>
+                  <Button variant="ghost" size="sm" class="text-3xs h-7 px-2 font-semibold">Download</Button>
+                </a>
+              </div>
+            </Card>
+          {:else}
+            <div class="col-span-full py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+              No project files uploaded yet.
+            </div>
+          {/each}
+        </div>
+      </div>
+
+    {:else if activeTab === 'weekly-reports'}
+      <div class="flex flex-col gap-6">
+        <div class="flex justify-between items-center border-b border-border/40 pb-3">
+          <h3 class="text-lg font-bold text-foreground">Weekly Progress Reports</h3>
+          <Button variant="primary" size="sm" onclick={() => showReportSubmitForm = !showReportSubmitForm}>
+            <Plus class="w-3.5 h-3.5" />
+            Submit Weekly Report
+          </Button>
+        </div>
+
+        {#if showReportSubmitForm}
+          <Card>
+            <form onsubmit={handleWeeklyReportSubmit} class="flex flex-col gap-4">
+              <h4 class="font-extrabold text-sm text-foreground text-left">Submit Report for Week</h4>
+              
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-left">
+                <div class="flex flex-col gap-1.5">
+                  <label for="rep-week" class="text-xs font-semibold text-foreground">Week Number</label>
+                  <input 
+                    id="rep-week"
+                    type="number" 
+                    min="1" 
+                    max="16" 
+                    bind:value={reportWeekNumber} 
+                    required
+                    class="px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="rep-ach" class="text-xs font-semibold text-foreground">Key Achievements / Tasks Completed</label>
+                <textarea 
+                  id="rep-ach"
+                  placeholder="What did the team accomplish this week?" 
+                  bind:value={reportAchievements} 
+                  required
+                  rows="3"
+                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                ></textarea>
+              </div>
+
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="rep-plan" class="text-xs font-semibold text-foreground">Planned Tasks for Next Week</label>
+                <textarea 
+                  id="rep-plan"
+                  placeholder="What does the team plan to execute next week?" 
+                  bind:value={reportPlannedTasks} 
+                  required
+                  rows="3"
+                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                ></textarea>
+              </div>
+
+              <div class="flex flex-col gap-1.5 text-left">
+                <label for="rep-block" class="text-xs font-semibold text-foreground">Current Blockers / Impediments</label>
+                <textarea 
+                  id="rep-block"
+                  placeholder="Any technical blockers or dependencies?" 
+                  bind:value={reportBlockers} 
+                  rows="2"
+                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                ></textarea>
+              </div>
+
+              <div class="flex justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onclick={() => showReportSubmitForm = false}>Cancel</Button>
+                <Button type="submit" variant="primary" size="sm">Submit Report</Button>
+              </div>
+            </form>
+          </Card>
+        {/if}
+
+        <div class="grid grid-cols-1 gap-4">
+          {#each weeklyReports as rep}
+            <div class="p-6 border border-border bg-card rounded-2xl shadow-2xs flex flex-col gap-4 text-left">
+              <div class="flex justify-between items-start border-b border-border/40 pb-3">
+                <div class="flex flex-col">
+                  <span class="font-extrabold text-foreground text-md">Week {rep.weekNumber} Report</span>
+                  <span class="text-3xs text-muted-foreground mt-0.5">Submitted by: {rep.submittedByName} on {new Date(rep.submittedAt).toLocaleDateString()}</span>
+                </div>
+                <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
+                  {rep.status === 'approved' ? 'Approved' : rep.status === 'pending' ? 'Pending Review' : 'Revision Requested'}
+                </Badge>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div class="p-3 bg-muted/10 rounded-xl border">
+                  <span class="font-bold text-foreground/80 block mb-1">Achievements:</span>
+                  <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.achievements}</p>
+                </div>
+                <div class="p-3 bg-muted/10 rounded-xl border">
+                  <span class="font-bold text-foreground/80 block mb-1">Planned Work:</span>
+                  <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.plannedTasks}</p>
+                </div>
+                <div class="p-3 bg-muted/10 rounded-xl border">
+                  <span class="font-bold text-foreground/80 block mb-1">Blockers:</span>
+                  <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.blockers || 'None'}</p>
+                </div>
+              </div>
+
+              {#if rep.feedback}
+                <div class="p-4 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+                  <span class="font-bold text-foreground block mb-1">Mentor Feedback:</span>
+                  <p class="text-muted-foreground leading-relaxed italic">"{rep.feedback}"</p>
+                </div>
+              {/if}
+            </div>
+          {:else}
+            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+              No weekly reports submitted yet.
+            </div>
+          {/each}
+        </div>
+      </div>
+
+    {:else if activeTab === 'feedback-timeline'}
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start text-left">
+        <!-- Timeline & Meetings column -->
+        <div class="lg:col-span-2 flex flex-col gap-6">
+          <!-- Timeline widget -->
+          <Card class="flex flex-col gap-4">
+            <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Project Lifecycle Timeline</h3>
+            
+            <!-- Timeline UI -->
+            <div class="flex flex-col gap-4 relative pl-6 border-l border-border mt-2">
+              <!-- Stage 1 -->
+              <div class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-background">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                </div>
+                <span class="text-xs font-bold text-foreground">1. Proposal Submitted</span>
+                <p class="text-3xs text-muted-foreground mt-0.5">Project was drafted and submitted for verification.</p>
+              </div>
+
+              <!-- Stage 2 -->
+              <div class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
+                  {project.status === 'active' ? 'bg-emerald-500' : project.status === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'}">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                </div>
+                <span class="text-xs font-bold text-foreground capitalize">2. Faculty Review ({project.status})</span>
+                <p class="text-3xs text-muted-foreground mt-0.5">
+                  {#if project.status === 'active'}
+                    Proposal approved! The project is currently in progress.
+                  {:else if project.status === 'rejected'}
+                    Proposal rejected. Please connect with your supervisor.
+                  {:else}
+                    Pending approval by department faculty members.
+                  {/if}
+                </p>
+              </div>
+
+              <!-- Stage 3 -->
+              <div class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
+                  {milestoneProg > 0 ? (milestoneProg === 100 ? 'bg-emerald-500' : 'bg-primary') : 'bg-muted'}">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                </div>
+                <span class="text-xs font-bold text-foreground">3. Milestones Setup & Execution ({milestoneProg}% Done)</span>
+                <p class="text-3xs text-muted-foreground mt-0.5">{project.milestones.filter(m => m.completed).length} of {project.milestones.length} milestones successfully finished.</p>
+              </div>
+
+              <!-- Stage 4 -->
+              <div class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
+                  {approvedReps > 0 ? 'bg-emerald-500' : 'bg-muted'}">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                </div>
+                <span class="text-xs font-bold text-foreground">4. Weekly Reviews ({approvedReps} Approved)</span>
+                <p class="text-3xs text-muted-foreground mt-0.5">{weeklyReports.length} reports submitted, {approvedReps} approved by faculty.</p>
+              </div>
+
+              <!-- Stage 5 -->
+              <div class="relative">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
+                  {allDone ? 'bg-emerald-500' : 'bg-muted'}">
+                  <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                </div>
+                <span class="text-xs font-bold text-foreground">5. Final Submission & Evaluation</span>
+                <p class="text-3xs text-muted-foreground mt-0.5">
+                  {#if allDone}
+                    All milestones cleared. Ready for final evaluation!
+                  {:else}
+                    Complete all milestones and reviews to qualify for final grading.
+                  {/if}
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <!-- Scheduled Meetings -->
+          <Card class="flex flex-col gap-4">
+            <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Supervisor Review Meetings</h3>
+            <div class="flex flex-col gap-3">
+              {#each meetings as meet}
+                <div class="p-4 border rounded-xl bg-card flex flex-col gap-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-foreground">{meet.title}</span>
+                    <Badge variant={meet.status === 'scheduled' ? 'success' : 'danger'}>
+                      {meet.status === 'scheduled' ? 'Scheduled' : 'Cancelled'}
+                    </Badge>
+                  </div>
+                  <div class="flex flex-col gap-1 text-2xs text-muted-foreground">
+                    <span class="flex items-center gap-1.5">
+                      <Clock class="w-3.5 h-3.5" />
+                      {meet.date} at {meet.time}
+                    </span>
+                    <span class="font-semibold text-primary truncate mt-0.5">Location/Link: {meet.linkOrLocation}</span>
+                  </div>
+                </div>
+              {:else}
+                <div class="py-6 text-center text-xs text-muted-foreground italic">No meetings scheduled for this team.</div>
+              {/each}
+            </div>
+          </Card>
+        </div>
+
+        <!-- Categorized Feedback Column -->
+        <Card class="flex flex-col gap-4">
+          <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2 font-black uppercase tracking-wider text-muted-foreground text-xs">Categorized Feedback</h3>
+          
+          <div class="flex flex-col gap-4">
+            {#each ['code', 'documentation', 'ui', 'testing', 'presentation'] as cat}
+              {@const catFb = feedbackList.filter(f => f.category === cat)}
+              <div class="flex flex-col gap-2 p-3.5 border rounded-xl bg-muted/10">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-black uppercase tracking-wider text-primary">{cat}</span>
+                  <Badge variant="secondary" class="text-3xs">{catFb.length}</Badge>
+                </div>
+                
+                {#each catFb as fb}
+                  <div class="border-t border-border/40 pt-2 mt-1 text-xs">
+                    <p class="text-foreground leading-relaxed italic">"{fb.feedbackText}"</p>
+                    <span class="text-3xs text-muted-foreground block mt-1 font-semibold">- By {fb.facultyName} on {new Date(fb.createdAt).toLocaleDateString()}</span>
+                  </div>
+                {:else}
+                  <p class="text-[10px] text-muted-foreground/60 italic">No feedback submitted for this category.</p>
+                {/each}
               </div>
             {/each}
           </div>
-        </div>
-
-      {:else}
-        {#if activeTab === 'discussions'}
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <Card class="lg:col-span-2 flex flex-col gap-4">
-              <div class="flex justify-between items-center border-b border-border/40 pb-3">
-                <h3 class="text-lg font-bold text-foreground">Discussions Space</h3>
-                <Button variant="outline" size="sm" onclick={() => showThreadForm = !showThreadForm}>
-                  <Plus class="w-3.5 h-3.5" />
-                  Start Thread
-                </Button>
-              </div>
-
-              {#if showThreadForm}
-                <form onsubmit={handleCreateThread} class="p-4 border border-border/80 rounded-2xl flex flex-col gap-3 bg-muted/10">
-                  <div class="flex flex-col gap-1.5">
-                    <label for="th-title" class="text-xs font-semibold text-foreground">Thread Title</label>
-                    <input 
-                      id="th-title"
-                      type="text" 
-                      placeholder="e.g. Design assets link" 
-                      bind:value={threadTitle}
-                      required
-                      class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
-                    />
-                  </div>
-                  <div class="flex flex-col gap-1.5">
-                    <label for="th-content" class="text-xs font-semibold text-foreground">Content Details</label>
-                    <textarea 
-                      id="th-content"
-                      placeholder="Discuss ideas..." 
-                      bind:value={threadContent}
-                      required
-                      rows="4"
-                      class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
-                    ></textarea>
-                  </div>
-                  <div class="flex justify-end gap-2">
-                    <Button type="button" variant="outline" size="sm" onclick={() => showThreadForm = false}>Cancel</Button>
-                    <Button type="submit" variant="primary" size="sm">Publish Thread</Button>
-                  </div>
-                </form>
-              {/if}
-
-              <div class="flex flex-col gap-3">
-                {#each threads as th}
-                  <div 
-                    onclick={() => selectedThread = th}
-                    onkeydown={(e) => e.key === 'Enter' && (selectedThread = th)}
-                    role="button"
-                    tabindex="0"
-                    class="p-4 border rounded-xl hover:border-primary/20 hover:bg-muted/5 transition-all cursor-pointer flex justify-between items-center text-left"
-                  >
-                    <div class="flex flex-col gap-1">
-                      <span class="text-sm font-bold text-foreground hover:text-primary transition-colors">{th.title}</span>
-                      <div class="flex items-center gap-2 text-2xs text-muted-foreground mt-1">
-                        <span>Posted by: {th.authorName}</span>
-                        <span>•</span>
-                        <span>{new Date(th.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-1.5 text-2xs text-muted-foreground font-bold">
-                      <MessageCircle class="w-4 h-4" />
-                      {th.replies.length} replies
-                    </div>
-                  </div>
-                {:else}
-                  <div class="py-12 text-center text-xs text-muted-foreground italic">No discussion threads found.</div>
-                {/each}
-              </div>
-            </Card>
-
-            <Card>
-              {#if selectedThread}
-                <div class="flex flex-col gap-4">
-                  <div class="flex justify-between items-start border-b border-border/40 pb-2">
-                    <div class="flex flex-col">
-                      <span class="text-sm font-extrabold text-foreground">{selectedThread.title}</span>
-                      <span class="text-3xs text-muted-foreground font-semibold mt-1">Started by: {selectedThread.authorName}</span>
-                    </div>
-                    <button onclick={() => selectedThread = null} class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">Close</button>
-                  </div>
-
-                  <p class="text-xs text-muted-foreground leading-relaxed p-3 bg-muted/10 border rounded-xl">{selectedThread.content}</p>
-
-                  <div class="flex flex-col gap-3 mt-2 max-h-56 overflow-y-auto pr-1">
-                    {#each selectedThread.replies as rep}
-                      <div class="p-2.5 border rounded-lg bg-card flex flex-col gap-1">
-                        <div class="flex items-center justify-between">
-                          <span class="text-xs font-bold text-foreground">{rep.authorName}</span>
-                          <span class="text-[9px] text-muted-foreground">{new Date(rep.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <p class="text-xs text-muted-foreground">{rep.content}</p>
-                      </div>
-                    {/each}
-                  </div>
-
-                  <form onsubmit={handleCreateReply} class="flex gap-2 mt-2">
-                    <input 
-                      type="text" 
-                      placeholder="Write a reply..." 
-                      bind:value={replyText}
-                      required
-                      class="flex-1 px-3 py-1.5 rounded-lg border border-border bg-background text-xs text-foreground focus:outline-none"
-                    />
-                    <Button type="submit" variant="primary" size="sm" class="h-8.5 w-8.5 rounded-lg p-0">
-                      <Send class="w-3.5 h-3.5" />
-                    </Button>
-                  </form>
-                </div>
-              {:else}
-                <div class="h-44 flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
-                  Select a discussion thread on the left to read replies.
-                </div>
-              {/if}
-            </Card>
-          </div>
-
-        {:else}
-          <div class="flex flex-col gap-4">
-            <div class="flex justify-between items-center">
-              <h3 class="text-lg font-bold text-foreground">File Library</h3>
-              <Button variant="outline" size="sm" onclick={() => fileDialogOpen = true}>
-                <FolderPlus class="w-4 h-4" />
-                Upload Mock File
-              </Button>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-2">
-              {#each files as f}
-                <Card hoverable class="p-4 flex flex-col justify-between h-44 relative text-left">
-                  <div>
-                    <div class="flex gap-3">
-                      <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <FileText class="w-5 h-5" />
-                      </div>
-                      <div class="flex flex-col min-w-0">
-                        <span class="text-xs font-bold text-foreground truncate">{f.name}</span>
-                        <span class="text-[10px] text-muted-foreground mt-0.5">{f.size} • version {f.version}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="mt-4 pt-3 border-t border-border flex items-center justify-between text-3xs text-muted-foreground">
-                    <span>Uploaded by: {f.uploadedByName}</span>
-                    <a href="#download" onclick={(e) => (e.preventDefault(), toast.success(`Downloaded: ${f.name} (Simulated)`))}>
-                      <Button variant="ghost" size="sm" class="text-3xs h-7 px-2 font-semibold">Download</Button>
-                    </a>
-                  </div>
-                </Card>
-              {:else}
-                <div class="col-span-full py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
-                  No project files uploaded yet.
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      {/if}
+        </Card>
+      </div>
     {/if}
+
   </div>
 
   <Dialog bind:open={inviteDialogOpen} title="Invite classmate to project">

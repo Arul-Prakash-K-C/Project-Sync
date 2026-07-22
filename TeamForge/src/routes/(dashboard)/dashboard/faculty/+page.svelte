@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type ProjectIdea } from '$lib/services/db';
+  import { db, type Project, type ProjectIdea, type WeeklyReport } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { BookOpen, CheckSquare, Clock, ArrowRight, Check, X, Award, Lightbulb, MessageSquare, Send } from 'lucide-svelte';
+  import { 
+    BookOpen, CheckSquare, Clock, ArrowRight, Check, X, Award, Lightbulb, 
+    MessageSquare, Send, AlertTriangle, Users, Activity 
+  } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -11,6 +14,9 @@
 
   let projects = $state<Project[]>([]);
   let projectIdeas = $state<ProjectIdea[]>([]);
+  let weeklyReports = $state<WeeklyReport[]>([]);
+
+  // Derived states
   let pendingProjects = $derived(projects.filter(p => p.status === 'pending'));
   let activeProjects = $derived(projects.filter(p => p.status === 'active'));
   let adviceRequestIdeas = $derived(
@@ -29,11 +35,11 @@
     loadData();
   });
 
-  // Load supervision details
   function loadData() {
     if (auth.user) {
       projects = db.getProjects().filter(p => p.department === auth.user!.department);
       projectIdeas = db.getProjectIdeas();
+      weeklyReports = db.getWeeklyReports();
     }
   }
 
@@ -66,9 +72,16 @@
       
       const p = db.getProjects().find(proj => proj.id === id);
       if (p) {
-        const notifs = db.getNotifications(p.ownerId);
+        // Add initial milestone
+        const updated = [...p.milestones, {
+          id: `m_${Date.now()}`,
+          title: 'System Requirements Specification',
+          deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          completed: false
+        }];
+        db.updateProject(p.id, { milestones: updated });
+
         db.saveNotifications([
-          ...notifs,
           {
             id: `notif_${Date.now()}`,
             userId: p.ownerId,
@@ -81,7 +94,6 @@
           }
         ]);
       }
-
       loadData();
     } catch (err) {
       toast.error('Failed to approve project');
@@ -95,13 +107,11 @@
       
       const p = db.getProjects().find(proj => proj.id === id);
       if (p) {
-        const notifs = db.getNotifications(p.ownerId);
         db.saveNotifications([
-          ...notifs,
           {
             id: `notif_${Date.now()}`,
             userId: p.ownerId,
-            title: 'Project Proposal Update',
+            title: 'Project Proposal Rejected',
             description: `Your project proposal "${p.name}" was rejected by ${auth.user!.name}.`,
             type: 'project',
             read: false,
@@ -109,12 +119,20 @@
           }
         ]);
       }
-
       loadData();
     } catch (err) {
       toast.error('Failed to reject project');
     }
   }
+
+  let totalStudents = $derived(activeProjects.reduce((sum, p) => sum + p.members.length, 0));
+  let overdueMilestones = $derived(
+    activeProjects.reduce((count, p) => {
+      const today = new Date().toISOString().split('T')[0];
+      const overdue = p.milestones.filter(m => !m.completed && m.deadline < today);
+      return count + overdue.length;
+    }, 0)
+  );
 
   function calculateProgress(p: Project): number {
     if (p.milestones.length === 0) return 0;
@@ -124,18 +142,18 @@
 </script>
 
 {#if auth.user}
-  <div class="flex flex-col gap-8">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-      <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Faculty Dashboard</h2>
-        <p class="text-sm text-muted-foreground mt-1">Supervise student progress, review team proposals, and access analytics.</p>
-      </div>
+  <div class="flex flex-col gap-8 text-left">
+    
+    <!-- Title / Nav Header -->
+    <div class="flex flex-col border-b border-border/40 pb-4">
+      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Faculty Overview Dashboard</h2>
+      <p class="text-sm text-muted-foreground mt-1">High-level supervision summary of academic project teams, milestones status, and recent submissions.</p>
     </div>
 
     <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <Card hoverable class="flex items-center gap-4 py-5 px-6">
+        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
           <BookOpen class="w-6 h-6" />
         </div>
         <div>
@@ -144,143 +162,150 @@
         </div>
       </Card>
 
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+      <Card hoverable class="flex items-center gap-4 py-5 px-6">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
           <Clock class="w-6 h-6" />
         </div>
         <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Pending Proposals</p>
+          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Pending Approvals</p>
           <p class="text-2xl font-black text-foreground mt-1">{pendingProjects.length}</p>
         </div>
       </Card>
 
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-          <Award class="w-6 h-6" />
+      <Card hoverable class="flex items-center gap-4 py-5 px-6">
+        <div class="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
+          <AlertTriangle class="w-6 h-6" />
         </div>
         <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Avg Completion Rate</p>
-          <p class="text-2xl font-black text-foreground mt-1">
-            {#if activeProjects.length > 0}
-              {Math.round(activeProjects.reduce((sum, p) => sum + calculateProgress(p), 0) / activeProjects.length)}%
-            {:else}
-              0%
-            {/if}
-          </p>
+          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Overdue Milestones</p>
+          <p class="text-2xl font-black text-foreground mt-1">{overdueMilestones}</p>
+        </div>
+      </Card>
+
+      <Card hoverable class="flex items-center gap-4 py-5 px-6">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+          <Users class="w-6 h-6" />
+        </div>
+        <div>
+          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Students Monitored</p>
+          <p class="text-2xl font-black text-foreground mt-1">{totalStudents}</p>
         </div>
       </Card>
     </div>
 
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xl font-bold text-foreground">Project Proposals Pending Approval</h3>
-      {#if pendingProjects.length === 0}
-        <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center">
-          <CheckSquare class="w-12 h-12 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">All proposals reviewed</p>
-        </div>
-      {:else}
-        <div class="grid grid-cols-1 gap-4">
-          {#each pendingProjects as p}
-            <div class="p-6 border border-border bg-card rounded-2xl shadow-2xs flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div class="flex-1 flex flex-col gap-1 min-w-0">
-                <div class="flex items-center gap-3">
-                  <span class="font-extrabold text-foreground text-lg truncate">{p.name}</span>
-                  <Badge variant="warning">{p.status}</Badge>
-                </div>
-                <p class="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-1">{p.description}</p>
-                <span class="text-3xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Proposed By: {p.ownerName}</span>
-              </div>
-
-              <div class="flex items-center gap-2 self-end md:self-auto shrink-0">
-                <Button variant="danger" size="sm" onclick={() => rejectProject(p.id)}>
-                  <X class="w-4 h-4" />
-                  Decline
-                </Button>
-                <Button variant="primary" size="sm" onclick={() => approveProject(p.id)}>
-                  <Check class="w-4 h-4" />
-                  Approve Proposal
-                </Button>
-              </div>
+    <!-- Main Overview Layout (Split 2-Column Grid on large screens) -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      
+      <!-- Main Content Area (Pending Approvals, Advice Requests, Teams List) -->
+      <div class="lg:col-span-2 flex flex-col gap-8">
+        
+        <!-- Proposals Section -->
+        <div class="flex flex-col gap-4">
+          <h3 class="text-xl font-bold text-foreground">Project Proposals Pending Approval</h3>
+          {#if pendingProjects.length === 0}
+            <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center bg-card/10">
+              <CheckSquare class="w-12 h-12 text-muted-foreground/30 mb-3" />
+              <p class="text-sm font-bold text-muted-foreground">All proposals reviewed</p>
             </div>
-          {/each}
-        </div>
-      {/if}
-    </div>
-
-    <!-- Ideas Seeking Advice Section -->
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xl font-bold text-foreground flex items-center gap-2">
-        <Lightbulb class="w-5 h-5 text-amber-500 fill-amber-500/10" />
-        Project Ideas Requesting Advice
-      </h3>
-
-      {#if adviceRequestIdeas.length === 0}
-        <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center bg-card/10">
-          <MessageSquare class="w-12 h-12 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">No advice requests at this time</p>
-          <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Students will request your feedback here when drafting their initial ideas.</p>
-        </div>
-      {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#each adviceRequestIdeas as idea}
-            <Card class="p-6 flex flex-col justify-between min-h-60 text-left relative overflow-hidden">
-              <div>
-                <div class="flex justify-between items-start gap-4">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <Lightbulb class="w-5 h-5 text-amber-500 shrink-0" />
-                    <h4 class="text-base font-bold text-foreground truncate" title={idea.title}>{idea.title}</h4>
+          {:else}
+            <div class="grid grid-cols-1 gap-4">
+              {#each pendingProjects as p}
+                <div class="p-6 border border-border bg-card rounded-2xl shadow-2xs flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div class="flex-1 flex flex-col gap-1 min-w-0">
+                    <div class="flex items-center gap-3">
+                      <span class="font-extrabold text-foreground text-lg truncate">{p.name}</span>
+                      <Badge variant="warning">{p.status}</Badge>
+                    </div>
+                    <p class="text-xs text-muted-foreground line-clamp-2 leading-relaxed mt-1">{p.description}</p>
+                    <span class="text-3xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Proposed By: {p.ownerName}</span>
                   </div>
-                  <Badge variant="outline" class="text-3xs text-primary shrink-0">{idea.domain}</Badge>
+
+                  <div class="flex items-center gap-2 self-end md:self-auto shrink-0">
+                    <Button variant="danger" size="sm" onclick={() => rejectProject(p.id)}>
+                      <X class="w-4 h-4" />
+                      Decline
+                    </Button>
+                    <Button variant="primary" size="sm" onclick={() => approveProject(p.id)}>
+                      <Check class="w-4 h-4" />
+                      Approve Proposal
+                    </Button>
+                  </div>
                 </div>
-                <p class="text-3xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Author: {idea.ownerName}</p>
-                <p class="text-xs text-muted-foreground line-clamp-3 leading-relaxed mt-3">{idea.description}</p>
-                
-                <div class="flex flex-wrap gap-1 mt-3">
-                  {#each idea.requiredSkills.slice(0, 3) as skill}
-                    <Badge variant="primary" class="text-3xs px-1.5 py-0">{skill}</Badge>
-                  {/each}
-                  {#if idea.requiredSkills.length > 3}
-                    <span class="text-3xs text-muted-foreground font-semibold">+{idea.requiredSkills.length - 3}</span>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
-                <span class="text-3xs font-bold text-muted-foreground uppercase tracking-widest">
-                  {idea.advice?.length || 0} advice entries
-                </span>
-                
-                <Button variant="primary" size="sm" onclick={() => openAdviceDialog(idea)}>
-                  <MessageSquare class="w-3.5 h-3.5" />
-                  Provide Advice
-                </Button>
-              </div>
-            </Card>
-          {/each}
+              {/each}
+            </div>
+          {/if}
         </div>
-      {/if}
-    </div>
 
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xl font-bold text-foreground">Active Supervised Project Teams</h3>
+        <!-- Advice Requests Section -->
+        <div class="flex flex-col gap-4">
+          <h3 class="text-xl font-bold text-foreground flex items-center gap-2">
+            <Lightbulb class="w-5 h-5 text-amber-500 fill-amber-500/10" />
+            Project Ideas Requesting Advice
+          </h3>
 
-      {#if activeProjects.length === 0}
-        <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center">
-          <BookOpen class="w-12 h-12 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">No active supervised teams</p>
+          {#if adviceRequestIdeas.length === 0}
+            <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center bg-card/10">
+              <MessageSquare class="w-12 h-12 text-muted-foreground/30 mb-3" />
+              <p class="text-sm font-bold text-muted-foreground">No advice requests at this time</p>
+              <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Students will request your feedback here when drafting their initial ideas.</p>
+            </div>
+          {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {#each adviceRequestIdeas as idea}
+                <Card class="p-6 flex flex-col justify-between min-h-60 text-left relative overflow-hidden">
+                  <div>
+                    <div class="flex justify-between items-start gap-4">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <Lightbulb class="w-5 h-5 text-amber-500 shrink-0" />
+                        <h4 class="text-base font-bold text-foreground truncate" title={idea.title}>{idea.title}</h4>
+                      </div>
+                      <Badge variant="outline" class="text-3xs text-primary shrink-0">{idea.domain}</Badge>
+                    </div>
+                    <p class="text-3xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Author: {idea.ownerName}</p>
+                    <p class="text-xs text-muted-foreground line-clamp-3 leading-relaxed mt-3">{idea.description}</p>
+                    
+                    <div class="flex flex-wrap gap-1 mt-3">
+                      {#each idea.requiredSkills.slice(0, 3) as skill}
+                        <Badge variant="primary" class="text-3xs px-1.5 py-0">{skill}</Badge>
+                      {/each}
+                      {#if idea.requiredSkills.length > 3}
+                        <span class="text-3xs text-muted-foreground font-semibold">+{idea.requiredSkills.length - 3}</span>
+                      {/if}
+                    </div>
+                  </div>
+
+                  <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
+                    <span class="text-3xs font-bold text-muted-foreground uppercase tracking-widest">
+                      {idea.advice?.length || 0} advice entries
+                    </span>
+                    
+                    <Button variant="primary" size="sm" onclick={() => openAdviceDialog(idea)}>
+                      <MessageSquare class="w-3.5 h-3.5" />
+                      Provide Advice
+                    </Button>
+                  </div>
+                </Card>
+              {/each}
+            </div>
+          {/if}
         </div>
-      {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#each activeProjects as p}
-            <Card hoverable class="p-6 flex flex-col justify-between h-56 text-left">
-              <div>
+
+        <!-- Supervised Teams Statistics Section -->
+        <Card>
+          <h3 class="text-lg font-bold text-foreground mb-4">Assigned Student Teams Statistics</h3>
+          
+          <div class="flex flex-col gap-5">
+            {#each activeProjects as p}
+              <div class="p-4 border rounded-xl hover:bg-muted/10 transition-colors flex flex-col gap-3">
                 <div class="flex justify-between items-start gap-4">
-                  <h4 class="text-lg font-bold text-foreground truncate">{p.name}</h4>
+                  <div>
+                    <h4 class="font-extrabold text-foreground text-sm">{p.name}</h4>
+                    <p class="text-3xs text-muted-foreground mt-0.5 uppercase tracking-wider font-bold">Lead: {p.ownerName} • {p.members.length} Members</p>
+                  </div>
                   <Badge variant="success">Active</Badge>
                 </div>
-                <p class="text-3xs font-bold text-muted-foreground uppercase tracking-wider mt-1">Leader: {p.ownerName}</p>
-
-                <div class="mt-4 flex flex-col gap-1">
+                
+                <div class="flex flex-col gap-1">
                   <div class="flex justify-between text-3xs font-bold text-muted-foreground">
                     <span>Milestones Completed</span>
                     <span>{calculateProgress(p)}%</span>
@@ -290,21 +315,41 @@
                   </div>
                 </div>
               </div>
-
-              <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
-                <span class="text-3xs font-bold text-muted-foreground uppercase tracking-widest">{p.members.length} members active</span>
-                
-                <a href="/dashboard/student/project/{p.id}">
-                  <Button variant="outline" size="sm">
-                    Monitor Team
-                    <ArrowRight class="w-4 h-4" />
-                  </Button>
-                </a>
+            {:else}
+              <div class="py-12 border border-dashed rounded-xl flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
+                No active projects currently under supervision in {auth.user.department}.
               </div>
-            </Card>
+            {/each}
+          </div>
+        </Card>
+
+      </div>
+
+      <!-- Right Column: Sidebar (Recent Submissions Activity) -->
+      <Card class="flex flex-col gap-4">
+        <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Recent Submissions Activity</h3>
+        
+        <div class="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-1">
+          {#each weeklyReports.slice().reverse() as rep}
+            {@const proj = projects.find(pr => pr.id === rep.projectId)}
+            {#if proj}
+              <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
+                  <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
+                    {rep.status}
+                  </Badge>
+                </div>
+                <p class="text-3xs text-muted-foreground truncate">Project: {proj.name}</p>
+                <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+              </div>
+            {/if}
+          {:else}
+            <div class="py-8 text-center text-xs text-muted-foreground italic">No recent submission activities found.</div>
           {/each}
         </div>
-      {/if}
+      </Card>
+
     </div>
   </div>
 {/if}

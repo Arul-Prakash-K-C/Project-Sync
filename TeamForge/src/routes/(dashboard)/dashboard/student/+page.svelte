@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Task } from '$lib/services/db';
+  import { db, type Project, type Task, type Announcement, type Meeting } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Plus, FolderKanban, CheckSquare, Clock, ArrowRight, UserPlus, Check, X, ShieldAlert } from 'lucide-svelte';
+  import { Plus, FolderKanban, CheckSquare, Clock, ArrowRight, UserPlus, Check, X, ShieldAlert, Bell, Calendar } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -12,6 +12,8 @@
   let projects = $state<Project[]>([]);
   let invitations = $state<Project[]>([]);
   let allTasks = $state<Task[]>([]);
+  let announcements = $state<Announcement[]>([]);
+  let meetings = $state<Meeting[]>([]);
   let createDialogOpen = $state(false);
 
   // Form states
@@ -36,6 +38,13 @@
       invitations = db.getProjects().filter(p => p.pendingInvites.includes(auth.user!.id));
       // Load tasks
       allTasks = db.getTasks().filter(t => t.assignees.includes(auth.user!.id));
+      
+      // Load announcements for any project the student is part of
+      const studentProjectIds = projects.map(p => p.id);
+      announcements = db.getAnnouncements().filter(a => a.targetType === 'all' || a.targetIds.some(id => studentProjectIds.includes(id)));
+      
+      // Load scheduled meetings for student's projects
+      meetings = db.getMeetings().filter(m => studentProjectIds.includes(m.projectId) && m.status === 'scheduled');
     }
   }
 
@@ -157,6 +166,64 @@
           <p class="text-2xl font-black text-foreground mt-1">
             {completedTaskCount} <span class="text-sm font-semibold text-muted-foreground">/ {totalTaskCount} done</span>
           </p>
+        </div>
+      </Card>
+    </div>
+
+    <!-- Announcements & Meetings Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Announcements Panel -->
+      <Card class="flex flex-col gap-4">
+        <div class="flex items-center gap-2 border-b border-border/40 pb-2">
+          <Bell class="w-5 h-5 text-primary" />
+          <h3 class="text-lg font-bold text-foreground">Announcements</h3>
+        </div>
+        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+          {#each announcements as ann}
+            <div class="p-4 border border-border/80 rounded-xl bg-muted/5 flex flex-col gap-1.5">
+              <div class="flex justify-between items-start gap-4">
+                <span class="text-sm font-bold text-foreground">{ann.title}</span>
+                <Badge variant="info" class="text-3xs">Announcement</Badge>
+              </div>
+              <p class="text-xs text-muted-foreground leading-relaxed">{ann.content}</p>
+              <div class="flex justify-between items-center text-3xs text-muted-foreground mt-1 font-semibold">
+                <span>By: {ann.facultyName}</span>
+                <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+          {:else}
+            <div class="py-8 text-center text-xs text-muted-foreground italic">No active announcements.</div>
+          {/each}
+        </div>
+      </Card>
+
+      <!-- Meetings Panel -->
+      <Card class="flex flex-col gap-4">
+        <div class="flex items-center gap-2 border-b border-border/40 pb-2">
+          <Calendar class="w-5 h-5 text-emerald-500" />
+          <h3 class="text-lg font-bold text-foreground">Upcoming Project Reviews</h3>
+        </div>
+        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+          {#each meetings as meet}
+            <div class="p-4 border border-emerald-500/10 rounded-xl bg-emerald-500/5 flex flex-col gap-2">
+              <div class="flex justify-between items-start gap-4">
+                <span class="text-sm font-bold text-foreground">{meet.title}</span>
+                <Badge variant="success" class="text-3xs">Scheduled</Badge>
+              </div>
+              <div class="flex flex-col gap-1 text-xs text-muted-foreground">
+                <span class="font-bold text-foreground/80">Project: {meet.projectName}</span>
+                <span class="flex items-center gap-1.5 mt-0.5">
+                  <Clock class="w-3.5 h-3.5" />
+                  {meet.date} at {meet.time}
+                </span>
+                <span class="truncate mt-0.5 font-semibold text-primary">
+                  Location/Link: {meet.linkOrLocation}
+                </span>
+              </div>
+            </div>
+          {:else}
+            <div class="py-8 text-center text-xs text-muted-foreground italic">No review meetings scheduled.</div>
+          {/each}
         </div>
       </Card>
     </div>

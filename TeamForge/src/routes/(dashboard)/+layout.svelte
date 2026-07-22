@@ -21,7 +21,13 @@
     CheckSquare,
     ChevronLeft,
     Check,
-    Lightbulb
+    Lightbulb,
+    Calendar,
+    Clock,
+    BarChart3,
+    Megaphone,
+    Notebook,
+    FileText
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
 
@@ -80,7 +86,14 @@
 
   const facultyLinks = [
     { href: '/dashboard/faculty', label: 'Dashboard', icon: Grid },
-    { href: '/dashboard/faculty/approvals', label: 'Project Approvals', icon: CheckSquare }
+    { href: '/dashboard/faculty/approvals', label: 'Project Approvals', icon: CheckSquare },
+    { href: '/dashboard/faculty/milestones', label: 'Milestones', icon: Calendar },
+    { href: '/dashboard/faculty/reviews', label: 'Weekly Reviews', icon: Clock },
+    { href: '/dashboard/faculty/analytics', label: 'Student Analytics', icon: BarChart3 },
+    { href: '/dashboard/faculty/meetings', label: 'Review Scheduler', icon: Clock },
+    { href: '/dashboard/faculty/announcements', label: 'Announcements', icon: Megaphone },
+    { href: '/dashboard/faculty/notes', label: 'Private Notes', icon: Notebook },
+    { href: '/dashboard/faculty/reports', label: 'Reports Hub', icon: FileText }
   ];
 
   const adminLinks = [
