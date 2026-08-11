@@ -14,18 +14,18 @@
   } = $props();
 
   const variantStyles = {
-    primary: 'bg-primary/10 text-primary border border-primary/20',
+    primary: 'bg-accent/10 text-accent border border-accent/25',
     secondary: 'bg-secondary text-secondary-foreground border border-border',
     outline: 'bg-transparent text-foreground border border-border',
-    success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20',
-    warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
-    danger: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
-    info: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+    success: 'bg-success/10 text-success border border-success/25',
+    warning: 'bg-warning/10 text-warning border border-warning/25',
+    danger: 'bg-destructive/10 text-destructive border border-destructive/25',
+    info: 'bg-info/10 text-info border border-info/25'
   };
 </script>
 
 <span
-  class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold select-none transition-colors {variantStyles[variant]} {className}"
+  class="inline-flex items-center px-2 py-0.5 rounded-sm font-mono text-[10.5px] font-semibold select-none transition-colors {variantStyles[variant]} {className}"
   {...rest}
 >
   {#if children}

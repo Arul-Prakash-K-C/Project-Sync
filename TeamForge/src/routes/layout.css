@@ -1,11 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Plus Jakarta Sans', sans-serif;
-  
+  --font-sans: 'Public Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -22,68 +23,91 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  
+
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-  
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-sm: calc(var(--radius) - 5px);
+
   --animate-gradient: gradient 8s linear infinite;
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  
-  --shadow-elevated: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.06) 0px 0px 0px 1px, rgba(0, 0, 0, 0.06) 0px 1px 1px -0.5px, rgba(0, 0, 0, 0.06) 0px 3px 3px -1.5px, rgba(0, 0, 0, 0.06) 0px 6px 6px -3px, rgba(0, 0, 0, 0.06) 0px 12px 12px -6px, rgba(0, 0, 0, 0.06) 0px 24px 24px -12px, inset 0px 1px 1px 0px rgba(255, 255, 255, 0.15), inset 0px -1px 1px 0px rgba(0, 0, 0, 0.6);
-  
+
+  --shadow-elevated: 0 1px 2px rgba(18, 21, 28, 0.04), 0 8px 24px -12px rgba(18, 21, 28, 0.14), inset 0px 1px 1px 0px rgba(255, 255, 255, 0.4);
+
   @keyframes gradient {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
 }
 
+/*
+  "Drafting & Forge" — a cool, structured blueprint neutral carries everyday
+  scanning work (tables, boards, forms); a single warm ember accent (copper in
+  light, brighter like a live coal in dark) is spent only on action and state.
+*/
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #e11d48;
-  --accent-foreground: #ffffff;
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(210 20% 98%);
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #18181b;
-  --radius: 0.75rem;
+  --background: #F5F6F8;
+  --foreground: #12151C;
+  --card: #FFFFFF;
+  --card-foreground: #12151C;
+  --popover: #FFFFFF;
+  --popover-foreground: #12151C;
+  --primary: #12151C;
+  --primary-foreground: #F5F6F8;
+  --secondary: #EBEEF2;
+  --secondary-foreground: #12151C;
+  --muted: #EBEEF2;
+  --muted-foreground: #5B6472;
+  --accent: #B4501F;
+  --accent-foreground: #FFFFFF;
+  --destructive: #B23A2E;
+  --destructive-foreground: #FFFFFF;
+  --success: #2F7D5D;
+  --success-foreground: #FFFFFF;
+  --warning: #96721E;
+  --warning-foreground: #FFFFFF;
+  --info: #3E5878;
+  --info-foreground: #FFFFFF;
+  --border: #DEE2E8;
+  --input: #DEE2E8;
+  --ring: #B4501F;
+  --radius: 0.5rem;
 }
 
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-foreground: #18181b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #fb7185;
-  --accent-foreground: #18181b;
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(210 20% 98%);
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #fafafa;
+  --background: #0A0D12;
+  --foreground: #EDEFF3;
+  --card: #12151C;
+  --card-foreground: #EDEFF3;
+  --popover: #12151C;
+  --popover-foreground: #EDEFF3;
+  --primary: #EDEFF3;
+  --primary-foreground: #12151C;
+  --secondary: #191D26;
+  --secondary-foreground: #EDEFF3;
+  --muted: #191D26;
+  --muted-foreground: #8D96A6;
+  --accent: #E2793D;
+  --accent-foreground: #14100A;
+  --destructive: #E06455;
+  --destructive-foreground: #14100A;
+  --success: #4FAE84;
+  --success-foreground: #0A130E;
+  --warning: #D1A544;
+  --warning-foreground: #14100A;
+  --info: #7C93B5;
+  --info-foreground: #0B121C;
+  --border: #262B35;
+  --input: #262B35;
+  --ring: #E2793D;
 }
 
 * {
@@ -111,12 +135,24 @@ body {
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-foreground);
+  background: var(--accent);
 }
 
-/* Explicit display font rule */
+/* Display + mono font utilities */
 .font-display {
   font-family: var(--font-display) !important;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.font-mono {
+  font-family: var(--font-mono) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chamfered corner — the one shape flourish, used sparingly (wordmark, hero cards) */
+.chamfer {
+  clip-path: polygon(18% 0, 100% 0, 100% 82%, 82% 100%, 0 100%, 0 18%);
 }
 
 /* Gradient border shell */
@@ -124,71 +160,57 @@ body {
   display: inline-block;
   padding: 1px;
   border-radius: var(--radius);
-  background: radial-gradient(rgba(0, 0, 0, 0) 55%, rgba(9, 9, 11, 0.65) 100%), linear-gradient(to right, var(--primary), var(--accent));
+  background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--info)));
   box-shadow: var(--shadow-elevated);
 }
 
 .gradient-shell-inner {
   padding: 18px 20px;
   border-radius: calc(var(--radius) - 1px);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--card);
   box-shadow: none;
   box-sizing: border-box;
 }
 
-.dark .gradient-shell-inner {
-  background: rgba(24, 24, 27, 0.92);
-}
-
 /* Glassmorphism Classes */
 .glass {
-  background: rgba(255, 255, 255, 0.45);
+  background: color-mix(in srgb, var(--card) 55%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(228, 228, 231, 0.4);
-}
-
-.dark .glass {
-  background: rgba(9, 9, 11, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(39, 39, 42, 0.3);
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.5);
+  background: color-mix(in srgb, var(--card) 65%, transparent);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(228, 228, 231, 0.5);
-  box-shadow: 0 8px 32px 0 rgba(24, 24, 27, 0.03);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  box-shadow: 0 8px 32px 0 rgba(18, 21, 28, 0.04);
 }
 
 .dark .glass-card {
-  background: rgba(24, 24, 27, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(39, 39, 42, 0.2);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 /* Ensure headers and sidebars display correct transparent background according to active theme */
 header {
-  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
-  border-color: color-mix(in srgb, var(--border) 40%, transparent) !important;
+  background-color: color-mix(in srgb, var(--background) 78%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 50%, transparent) !important;
 }
 
 aside {
-  background-color: color-mix(in srgb, var(--background) 75%, transparent) !important;
-  border-color: color-mix(in srgb, var(--border) 40%, transparent) !important;
+  background-color: color-mix(in srgb, var(--background) 82%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 50%, transparent) !important;
 }
 
-/* Background Grids */
+/* Blueprint grid — drafting-table backdrop, used only in editorial moments */
 .bg-grid {
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(128, 128, 128, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(128, 128, 128, 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
 }
 .dark .bg-grid {
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px);
 }

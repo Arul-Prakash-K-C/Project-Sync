@@ -216,7 +216,7 @@
               id="sch-proj"
               bind:value={scheduleProjectId}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
             >
               {#each activeProjects as p}
                 <option value={p.id}>{p.name}</option>
@@ -232,7 +232,7 @@
               placeholder="e.g. Mid-term presentation evaluation" 
               bind:value={meetingTitle}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
             />
           </div>
 
@@ -244,7 +244,7 @@
                 type="date" 
                 bind:value={meetingDate}
                 required
-                class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
               />
             </div>
 
@@ -255,7 +255,7 @@
                 type="time" 
                 bind:value={meetingTime}
                 required
-                class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
               />
             </div>
           </div>
@@ -268,7 +268,7 @@
               placeholder="e.g. Seminar Room 304 or Zoom URL" 
               bind:value={meetingLocation}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
             />
           </div>
 
@@ -290,7 +290,7 @@
           
           <div class="flex flex-col gap-3">
             {#each upcomingMeetings as meet}
-              <div class="p-4 border rounded-xl bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
+              <div class="p-4 border rounded-md bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
                 <div class="flex flex-col min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="text-sm font-bold text-foreground truncate">{meet.title}</span>
@@ -313,7 +313,7 @@
                   </button>
                   <button 
                     onclick={() => cancelMeeting(meet)}
-                    class="px-2.5 py-1.5 bg-rose-500/10 text-rose-600 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    class="px-2.5 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive/100 hover:text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                   >
                     Cancel Meeting
                   </button>
@@ -340,7 +340,7 @@
         id="dlg-sch-proj"
         bind:value={scheduleProjectId}
         required
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
       >
         {#each activeProjects as p}
           <option value={p.id}>{p.name}</option>
@@ -356,7 +356,7 @@
         placeholder="e.g. Mid-term presentation evaluation" 
         bind:value={meetingTitle}
         required
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
       />
     </div>
 
@@ -368,7 +368,7 @@
           type="date" 
           bind:value={meetingDate}
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
         />
       </div>
 
@@ -379,7 +379,7 @@
           type="time" 
           bind:value={meetingTime}
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
         />
       </div>
     </div>
@@ -392,7 +392,7 @@
         placeholder="e.g. Seminar Room 304 or Zoom URL" 
         bind:value={meetingLocation}
         required
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
       />
     </div>
 
@@ -414,7 +414,7 @@
         id="dlg-fb-proj"
         bind:value={feedbackProjectId}
         required
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
       >
         {#each activeProjects as p}
           <option value={p.id}>{p.name}</option>
@@ -428,7 +428,7 @@
         id="dlg-fb-cat"
         bind:value={feedbackCategory}
         required
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
       >
         <option value="code">Code Quality & Architecture</option>
         <option value="documentation">Documentation & Specifications</option>
@@ -446,7 +446,7 @@
         bind:value={feedbackText}
         required
         rows="4"
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
       ></textarea>
     </div>
 

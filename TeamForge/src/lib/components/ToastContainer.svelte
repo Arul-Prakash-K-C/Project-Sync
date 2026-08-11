@@ -9,21 +9,21 @@
     <div
       in:fly={{ x: 100, duration: 300 }}
       out:fly={{ x: 100, duration: 200 }}
-      class="pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg glass-card transition-all duration-300"
-      class:border-emerald-500={t.type === 'success'}
-      class:border-rose-500={t.type === 'error'}
-      class:border-amber-500={t.type === 'warning'}
-      class:border-indigo-500={t.type === 'info'}
+      class="pointer-events-auto flex items-start gap-3 p-4 rounded-md border shadow-lg glass-card transition-all duration-300"
+      class:border-success={t.type === 'success'}
+      class:border-destructive={t.type === 'error'}
+      class:border-warning={t.type === 'warning'}
+      class:border-info={t.type === 'info'}
     >
       <div class="mt-0.5 shrink-0">
         {#if t.type === 'success'}
-          <CheckCircle2 class="w-5 h-5 text-emerald-500" />
+          <CheckCircle2 class="w-5 h-5 text-success" />
         {:else if t.type === 'error'}
-          <XCircle class="w-5 h-5 text-rose-500" />
+          <XCircle class="w-5 h-5 text-destructive" />
         {:else if t.type === 'warning'}
-          <AlertTriangle class="w-5 h-5 text-amber-500" />
+          <AlertTriangle class="w-5 h-5 text-warning" />
         {:else}
-          <Info class="w-5 h-5 text-indigo-500" />
+          <Info class="w-5 h-5 text-info" />
         {/if}
       </div>
 

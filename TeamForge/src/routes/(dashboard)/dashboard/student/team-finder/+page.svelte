@@ -123,13 +123,13 @@
           type="text" 
           placeholder="Search by name or skill..." 
           bind:value={searchVal}
-          class="w-full pl-9 pr-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          class="w-full pl-9 pr-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
         />
       </div>
 
       <select 
         bind:value={filterDept}
-        class="px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer min-w-44"
+        class="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer min-w-44"
       >
         <option value="All">All Departments</option>
         {#each departments as d}
@@ -139,7 +139,7 @@
 
       <select 
         bind:value={filterYear}
-        class="px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer min-w-40"
+        class="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer min-w-40"
       >
         <option value="All">All Standing</option>
         <option value="Year 1">Year 1</option>
@@ -184,14 +184,14 @@
           <div class="absolute right-0 top-0 pt-4 pr-5 flex flex-col items-end">
             <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Match Compatibility</span>
             <div class="flex items-center gap-1.5 mt-1 font-extrabold text-lg text-foreground">
-              <Sparkles class="w-4 h-4 text-amber-500 fill-amber-500/20" />
+              <Sparkles class="w-4 h-4 text-warning fill-warning/20" />
               {t.compatibility}%
             </div>
           </div>
 
           <div>
             <div class="flex gap-4">
-              <img src={t.avatar} alt={t.name} class="w-14 h-14 rounded-2xl border border-primary/10 bg-muted" />
+              <img src={t.avatar} alt={t.name} class="w-14 h-14 rounded-lg border border-primary/10 bg-muted" />
               <div class="flex flex-col min-w-0 pr-24">
                 <span class="font-extrabold text-foreground text-lg truncate">{t.name}</span>
                 <span class="text-xs text-primary font-semibold truncate mt-0.5">{t.department}</span>
@@ -229,7 +229,7 @@
           </div>
         </Card>
       {:else}
-        <div class="col-span-full py-16 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center">
+        <div class="col-span-full py-16 border border-dashed rounded-lg flex flex-col items-center justify-center text-center">
           <Compass class="w-14 h-14 text-muted-foreground/30 mb-3" />
           <p class="text-sm font-bold text-muted-foreground">No matches found</p>
         </div>
@@ -240,8 +240,8 @@
   <Dialog bind:open={inviteDialogOpen} title="Send Team Invitation">
     {#if selectedUserForInvite}
       <form onsubmit={handleSendInvite} class="flex flex-col gap-4">
-        <div class="p-4 border rounded-xl flex gap-3.5 bg-muted/10 items-center">
-          <img src={selectedUserForInvite.avatar} alt={selectedUserForInvite.name} class="w-12 h-12 rounded-xl bg-muted" />
+        <div class="p-4 border rounded-md flex gap-3.5 bg-muted/10 items-center">
+          <img src={selectedUserForInvite.avatar} alt={selectedUserForInvite.name} class="w-12 h-12 rounded-md bg-muted" />
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold text-foreground">{selectedUserForInvite.name}</span>
             <span class="text-xs text-muted-foreground">{selectedUserForInvite.email}</span>
@@ -253,7 +253,7 @@
           <select 
             id="inv-proj"
             bind:value={selectedProjectId}
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
           >
             {#each myProjects as p}
               <option value={p.id}>{p.name}</option>
@@ -272,14 +272,14 @@
   <Dialog bind:open={breakdownDialogOpen} title="Compatibility Breakdown">
     {#if breakdownTarget && breakdown}
       <div class="flex flex-col gap-4">
-        <div class="flex items-center gap-3 p-3 border rounded-xl bg-muted/10">
-          <img src={breakdownTarget.avatar} alt={breakdownTarget.name} class="w-12 h-12 rounded-xl bg-muted" />
+        <div class="flex items-center gap-3 p-3 border rounded-md bg-muted/10">
+          <img src={breakdownTarget.avatar} alt={breakdownTarget.name} class="w-12 h-12 rounded-md bg-muted" />
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold text-foreground">{breakdownTarget.name}</span>
             <span class="text-xs text-muted-foreground">{breakdownTarget.department}</span>
           </div>
           <div class="ml-auto flex items-center gap-1.5 font-extrabold text-lg text-foreground">
-            <Sparkles class="w-4 h-4 text-amber-500 fill-amber-500/20" />
+            <Sparkles class="w-4 h-4 text-warning fill-warning/20" />
             {breakdown.total}%
           </div>
         </div>

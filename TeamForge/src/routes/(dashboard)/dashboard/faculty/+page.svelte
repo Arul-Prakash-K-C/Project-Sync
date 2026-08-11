@@ -58,7 +58,7 @@
     <!-- Quick Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
           <BookOpen class="w-6 h-6" />
         </div>
         <div>
@@ -68,7 +68,7 @@
       </Card>
 
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning shrink-0">
           <Clock class="w-6 h-6" />
         </div>
         <div>
@@ -78,7 +78,7 @@
       </Card>
 
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
+        <div class="w-12 h-12 rounded-md bg-destructive/10 flex items-center justify-center text-destructive shrink-0">
           <AlertTriangle class="w-6 h-6" />
         </div>
         <div>
@@ -88,7 +88,7 @@
       </Card>
 
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success shrink-0">
           <Users class="w-6 h-6" />
         </div>
         <div>
@@ -108,7 +108,7 @@
           
           <div class="flex flex-col gap-5">
             {#each activeProjects as p}
-              <div class="p-4 border rounded-xl hover:bg-muted/10 transition-colors flex flex-col gap-3">
+              <div class="p-4 border rounded-md hover:bg-muted/10 transition-colors flex flex-col gap-3">
                 <div class="flex justify-between items-start gap-4">
                   <div>
                     <h4 class="font-extrabold text-foreground text-sm">{p.name}</h4>
@@ -128,7 +128,7 @@
                 </div>
               </div>
             {:else}
-              <div class="py-12 border border-dashed rounded-xl flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
+              <div class="py-12 border border-dashed rounded-md flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
                 No active projects currently under supervision in {auth.user.department}.
               </div>
             {/each}
@@ -143,7 +143,7 @@
         <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-1">
           {#each departmentReports.slice().reverse() as rep}
             {@const proj = projects.find(pr => pr.id === rep.projectId)}
-            <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
+            <div class="p-3 border rounded-md bg-card flex flex-col gap-1">
               <div class="flex justify-between items-center">
                 <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
                 <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>

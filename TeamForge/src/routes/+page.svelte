@@ -170,17 +170,17 @@
   ></canvas>
 
   <!-- Glowing Blurs -->
-  <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[140px] pointer-events-none animate-pulse-slow z-0"></div>
-  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-500/10 rounded-full blur-[140px] pointer-events-none animate-pulse-slow z-0"></div>
+  <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-accent/15 rounded-full blur-[140px] pointer-events-none animate-pulse-slow z-0"></div>
+  <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-info/10 rounded-full blur-[140px] pointer-events-none animate-pulse-slow z-0"></div>
 
   <!-- Landing Navbar -->
   <header class="sticky top-0 z-40 border-b border-border/40 backdrop-blur-md bg-background/60" style="z-index: 10;">
     <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-lg shadow-lg">
+        <div class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-base shadow-lg">
           TF
         </div>
-        <span class="text-xl font-bold tracking-tight text-foreground">TeamForge</span>
+        <span class="font-display text-xl text-foreground">TeamForge</span>
       </div>
 
       <nav class="hidden md:flex items-center gap-8">
@@ -190,13 +190,13 @@
       </nav>
 
       <div class="flex items-center gap-3">
-        <button 
-          onclick={() => themeCtx?.toggleTheme()} 
-          class="p-2 rounded-xl border border-border hover:bg-secondary transition-colors cursor-pointer text-foreground"
+        <button
+          onclick={() => themeCtx?.toggleTheme()}
+          class="p-2 rounded-md border border-border hover:bg-secondary transition-colors cursor-pointer text-foreground"
           aria-label="Toggle Theme"
         >
           {#if themeCtx?.isDark}
-            <Sun class="w-4 h-4 text-amber-400" />
+            <Sun class="w-4 h-4 text-accent" />
           {:else}
             <Moon class="w-4 h-4" />
           {/if}
@@ -214,41 +214,37 @@
 
   <!-- Hero Section -->
   <section class="max-w-7xl mx-auto px-6 pt-24 pb-28 text-center relative" style="z-index: 10;">
-    <div class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-semibold mb-8">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-accent/30 bg-accent/8 text-accent font-mono text-2xs font-semibold mb-8 uppercase tracking-widest">
       <Sparkles class="w-3.5 h-3.5" />
       Intelligent Teammate Recommendation Algorithm
     </div>
 
-    <!-- display-lg typography pairing Newsreader -->
-    <h1 
+    <h1
       bind:this={titleRef}
-      class="font-display font-light text-5xl md:text-8xl tracking-tight text-foreground max-w-5xl mx-auto leading-tight italic"
+      class="font-display text-5xl md:text-7xl text-foreground max-w-4xl mx-auto leading-[1.05]"
     >
-      Assemble Your Ideal <br/>
-      <span class="bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-400 to-accent font-sans font-extrabold not-italic">
-        Academic Collaboration Team
-      </span>
+      Build teams the way you build <span class="text-accent">anything worth building</span>.
     </h1>
 
-    <p 
+    <p
       bind:this={subRef}
-      class="mt-8 text-base md:text-lg text-muted-foreground max-w-xl mx-auto font-light leading-relaxed"
+      class="mt-8 text-base md:text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed"
     >
-      Form project teams dynamically, track tasks on smart boards, converse with threads, share files safely, and monitor milestones—all backed by intelligent matching scoring.
+      Form project teams dynamically, track tasks on smart boards, converse in threads, share files, and monitor milestones — all backed by a matching score you can see the reasoning behind.
     </p>
 
-    <div 
+    <div
       bind:this={buttonsRef}
       class="mt-10 flex flex-wrap justify-center gap-4"
     >
       <a href="/auth?tab=register">
-        <Button variant="primary" size="lg" class="shadow-lg shadow-primary/25 rounded-full">
+        <Button variant="primary" size="lg">
           Find Teammates Now
           <ArrowRight class="w-4 h-4" />
         </Button>
       </a>
       <a href="/auth">
-        <Button variant="outline" size="lg" class="rounded-full">
+        <Button variant="outline" size="lg">
           Explore Projects
         </Button>
       </a>
@@ -259,15 +255,15 @@
       <div bind:this={cardRefs[0]}>
         <Card hoverable glass class="h-full flex flex-col justify-between">
           <div>
-            <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-5">
+            <div class="w-11 h-11 rounded-md bg-accent/10 flex items-center justify-center text-accent mb-5">
               <Cpu class="w-5 h-5" />
             </div>
-            <h3 class="text-base font-bold text-foreground mb-2">Smart Compatibility Matching</h3>
+            <h3 class="font-display text-base text-foreground mb-2">Smart Compatibility Matching</h3>
             <p class="text-xs text-muted-foreground leading-relaxed">
               Find partners automatically based on skill vectors, class standing, departmental overlap, and availability metrics.
             </p>
           </div>
-          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-primary font-bold">
+          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-accent font-bold">
             <span>Explore Finder</span>
             <ArrowUpRight class="w-3.5 h-3.5" />
           </div>
@@ -277,15 +273,15 @@
       <div bind:this={cardRefs[1]}>
         <Card hoverable glass class="h-full flex flex-col justify-between">
           <div>
-            <div class="w-11 h-11 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 mb-5">
+            <div class="w-11 h-11 rounded-md bg-info/10 flex items-center justify-center text-info mb-5">
               <Layers class="w-5 h-5" />
             </div>
-            <h3 class="text-base font-bold text-foreground mb-2">Kanban Task Tracker</h3>
+            <h3 class="font-display text-base text-foreground mb-2">Kanban Task Tracker</h3>
             <p class="text-xs text-muted-foreground leading-relaxed">
               Track project milestones, tasks, dependencies, priorities, comments, and file cards inside collaborative workspace lanes.
             </p>
           </div>
-          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-indigo-500 font-bold">
+          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-info font-bold">
             <span>Explore Kanban</span>
             <ArrowUpRight class="w-3.5 h-3.5" />
           </div>
@@ -295,15 +291,15 @@
       <div bind:this={cardRefs[2]}>
         <Card hoverable glass class="h-full flex flex-col justify-between">
           <div>
-            <div class="w-11 h-11 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-500 mb-5">
+            <div class="w-11 h-11 rounded-md bg-secondary flex items-center justify-center text-foreground mb-5">
               <ShieldCheck class="w-5 h-5" />
             </div>
-            <h3 class="text-base font-bold text-foreground mb-2">Faculty & Admin Overviews</h3>
+            <h3 class="font-display text-base text-foreground mb-2">Faculty & Admin Overviews</h3>
             <p class="text-xs text-muted-foreground leading-relaxed">
               Faculty members verify project scopes, monitor task progress analytics, and approve team submissions easily.
             </p>
           </div>
-          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-purple-500 font-bold">
+          <div class="mt-6 pt-4 border-t border-border/40 flex items-center justify-between text-2xs text-foreground font-bold">
             <span>Explore Monitoring</span>
             <ArrowUpRight class="w-3.5 h-3.5" />
           </div>
@@ -316,19 +312,19 @@
   <section id="stats" class="border-y border-border/40 bg-muted/20 relative py-16" style="z-index: 10;">
     <div class="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
       <div>
-        <div class="text-4xl md:text-5xl font-extrabold text-foreground">1,200+</div>
+        <div class="font-display text-4xl md:text-5xl text-foreground">1,200+</div>
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-2">Active Students</div>
       </div>
       <div>
-        <div class="text-4xl md:text-5xl font-extrabold text-primary">340+</div>
+        <div class="font-display text-4xl md:text-5xl text-accent">340+</div>
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-2">Teams Formed</div>
       </div>
       <div>
-        <div class="text-4xl md:text-5xl font-extrabold text-foreground">98%</div>
+        <div class="font-display text-4xl md:text-5xl text-foreground">98%</div>
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-2">Completion Rate</div>
       </div>
       <div>
-        <div class="text-4xl md:text-5xl font-extrabold text-primary">15+</div>
+        <div class="font-display text-4xl md:text-5xl text-accent">15+</div>
         <div class="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-2">Supported Departments</div>
       </div>
     </div>
@@ -337,7 +333,7 @@
   <!-- Detailed Features Section -->
   <section id="features" class="max-w-7xl mx-auto px-6 py-24 relative" style="z-index: 10;">
     <div class="text-center max-w-2xl mx-auto mb-16">
-      <h2 class="text-3xl font-extrabold text-foreground tracking-tight sm:text-4xl">
+      <h2 class="font-display text-3xl text-foreground sm:text-4xl">
         All-in-One Collaboration Hub
       </h2>
       <p class="mt-4 text-sm text-muted-foreground leading-relaxed">
@@ -347,7 +343,7 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-accent/10 text-accent flex items-center justify-center">
           <Users class="w-5 h-5" />
         </div>
         <div>
@@ -359,7 +355,7 @@
       </div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-info/10 text-info flex items-center justify-center">
           <Layers class="w-5 h-5" />
         </div>
         <div>
@@ -371,7 +367,7 @@
       </div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-secondary text-foreground flex items-center justify-center">
           <MessageSquare class="w-5 h-5" />
         </div>
         <div>
@@ -383,19 +379,19 @@
       </div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-success/10 text-success flex items-center justify-center">
           <FolderGit2 class="w-5 h-5" />
         </div>
         <div>
-          <h4 class="text-sm font-bold text-foreground">Mock File Storage</h4>
+          <h4 class="text-sm font-bold text-foreground">Project File Storage</h4>
           <p class="mt-2 text-xs text-muted-foreground leading-relaxed">
-            Keep track of PDF guidelines, images, and codebase drafts. Built-in version history tracks document logs.
+            Keep track of PDF guidelines, images, and codebase drafts, stored right in the browser with full version history.
           </p>
         </div>
       </div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-warning/10 text-warning flex items-center justify-center">
           <FileCheck class="w-5 h-5" />
         </div>
         <div>
@@ -407,7 +403,7 @@
       </div>
 
       <div class="flex gap-4">
-        <div class="shrink-0 w-10 h-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+        <div class="shrink-0 w-10 h-10 rounded-md bg-secondary text-foreground flex items-center justify-center">
           <ShieldCheck class="w-5 h-5" />
         </div>
         <div>
@@ -422,8 +418,8 @@
 
   <!-- CTA section -->
   <section class="max-w-6xl mx-auto px-6 mb-24 relative" style="z-index: 10;">
-    <div class="rounded-3xl border border-primary/20 bg-muted/30 p-12 text-center flex flex-col items-center max-w-4xl mx-auto glass-card">
-      <h2 class="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight">
+    <div class="rounded-lg border border-accent/25 bg-muted/30 p-12 text-center flex flex-col items-center max-w-4xl mx-auto glass-card">
+      <h2 class="font-display text-2xl md:text-3xl text-foreground">
         Ready to build your next big project?
       </h2>
       <p class="mt-4 text-xs text-muted-foreground max-w-xl">
@@ -431,7 +427,7 @@
       </p>
       <div class="mt-8">
         <a href="/auth?tab=register">
-          <Button variant="primary" size="lg" class="shadow-lg shadow-primary/20 rounded-full">
+          <Button variant="primary" size="lg">
             Create Free Account
             <ArrowRight class="w-4 h-4" />
           </Button>
@@ -444,10 +440,10 @@
   <footer class="border-t border-border/40 py-12 bg-muted/10 relative" style="z-index: 10;">
     <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black text-sm">
+        <div class="chamfer w-8 h-8 bg-accent flex items-center justify-center text-accent-foreground font-display text-xs">
           TF
         </div>
-        <span class="text-base font-bold text-foreground">TeamForge</span>
+        <span class="font-display text-base text-foreground">TeamForge</span>
       </div>
       <p class="text-xs text-muted-foreground">
         © 2026 TeamForge. Crafted for Academic Excellence.

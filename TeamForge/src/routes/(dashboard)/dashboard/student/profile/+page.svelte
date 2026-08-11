@@ -109,7 +109,7 @@
             <select
               id="prof-dept"
               bind:value={department}
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               {#each departments as d}
                 <option value={d.name}>{d.name}</option>
@@ -122,7 +122,7 @@
             <select
               id="prof-year"
               bind:value={academicYear}
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             >
               <option value="Year 1">Year 1 (Freshman)</option>
               <option value="Year 2">Year 2 (Sophomore)</option>
@@ -132,7 +132,7 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-between p-4 border border-border/80 rounded-xl mt-2 bg-muted/10">
+        <div class="flex items-center justify-between p-4 border border-border/80 rounded-md mt-2 bg-muted/10">
           <div class="flex flex-col">
             <span class="text-sm font-bold text-foreground">Open to Projects</span>
             <span class="text-xs text-muted-foreground">Toggles whether other team leaders can discover you in Teammate Finder.</span>
@@ -154,7 +154,7 @@
             placeholder="Tell teams about your coding interests..."
             bind:value={bio}
             rows="3"
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
           ></textarea>
         </div>
       </Card>
@@ -169,14 +169,14 @@
         <div class="flex flex-col gap-2 mt-2">
           <span class="text-xs text-muted-foreground">Click your skills below or add custom tags:</span>
           
-          <div class="flex flex-wrap gap-1.5 p-3 border border-border/80 rounded-xl bg-muted/10 min-h-12 items-center">
+          <div class="flex flex-wrap gap-1.5 p-3 border border-border/80 rounded-md bg-muted/10 min-h-12 items-center">
             {#if skills.length === 0}
               <span class="text-xs text-muted-foreground italic pl-1">No skills added yet...</span>
             {/if}
             {#each skills as s}
               <Badge variant="primary" class="gap-1 pl-3.5 pr-2 py-1">
                 {s}
-                <button type="button" onclick={() => removeSkill(s)} class="hover:text-rose-500 cursor-pointer">
+                <button type="button" onclick={() => removeSkill(s)} class="hover:text-destructive cursor-pointer">
                   <X class="w-3 h-3" />
                 </button>
               </Badge>
@@ -189,7 +189,7 @@
               placeholder="e.g. Kotlin, Docker" 
               bind:value={skillInput}
               onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill(skillInput))}
-              class="flex-1 px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              class="flex-1 px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
             <Button type="button" variant="outline" onclick={() => addSkill(skillInput)}>
               <Plus class="w-4 h-4" />
@@ -226,14 +226,14 @@
         <div class="flex flex-col gap-2 mt-2">
           <span class="text-xs text-muted-foreground">Select topics that you want to work on:</span>
           
-          <div class="flex flex-wrap gap-1.5 p-3 border border-border/80 rounded-xl bg-muted/10 min-h-12 items-center">
+          <div class="flex flex-wrap gap-1.5 p-3 border border-border/80 rounded-md bg-muted/10 min-h-12 items-center">
             {#if interests.length === 0}
               <span class="text-xs text-muted-foreground italic pl-1">No interests added yet...</span>
             {/if}
             {#each interests as i}
               <Badge variant="info" class="gap-1 pl-3.5 pr-2 py-1">
                 {i}
-                <button type="button" onclick={() => removeInterest(i)} class="hover:text-rose-500 cursor-pointer">
+                <button type="button" onclick={() => removeInterest(i)} class="hover:text-destructive cursor-pointer">
                   <X class="w-3 h-3" />
                 </button>
               </Badge>
@@ -246,7 +246,7 @@
               placeholder="e.g. FinTech, Game Dev" 
               bind:value={interestInput}
               onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addInterest(interestInput))}
-              class="flex-1 px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              class="flex-1 px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             />
             <Button type="button" variant="outline" onclick={() => addInterest(interestInput)}>
               <Plus class="w-4 h-4" />

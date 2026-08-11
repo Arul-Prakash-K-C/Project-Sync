@@ -109,14 +109,14 @@
 
     <!-- Alert Panel for Invitations -->
     {#if invitations.length > 0}
-      <div class="p-4 border border-primary/20 bg-primary/5 rounded-2xl flex flex-col gap-3">
+      <div class="p-4 border border-primary/20 bg-primary/5 rounded-lg flex flex-col gap-3">
         <div class="flex items-center gap-2">
           <UserPlus class="w-5 h-5 text-primary" />
           <h4 class="text-sm font-bold text-foreground">Pending Project Invitations</h4>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           {#each invitations as inv}
-            <div class="flex items-center justify-between p-4 bg-card border rounded-xl shadow-xs">
+            <div class="flex items-center justify-between p-4 bg-card border rounded-md shadow-xs">
               <div class="flex flex-col min-w-0">
                 <span class="text-sm font-bold text-foreground truncate">{inv.name}</span>
                 <span class="text-xs text-muted-foreground">Invited by: {inv.ownerName}</span>
@@ -124,14 +124,14 @@
               <div class="flex items-center gap-2">
                 <button 
                   onclick={() => acceptInvitation(inv.id)}
-                  class="p-2 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg transition-all cursor-pointer"
+                  class="p-2 bg-success/10 text-success hover:bg-success hover:text-white rounded-lg transition-all cursor-pointer"
                   title="Accept Invite"
                 >
                   <Check class="w-4 h-4" />
                 </button>
                 <button 
                   onclick={() => declineInvitation(inv.id)}
-                  class="p-2 bg-rose-500/10 text-rose-600 hover:bg-rose-50 hover:text-white rounded-lg transition-all cursor-pointer"
+                  class="p-2 bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-white rounded-lg transition-all cursor-pointer"
                   title="Decline Invite"
                 >
                   <X class="w-4 h-4" />
@@ -146,7 +146,7 @@
     <!-- Quick Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary">
           <FolderKanban class="w-6 h-6" />
         </div>
         <div>
@@ -156,7 +156,7 @@
       </Card>
 
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning">
           <Clock class="w-6 h-6" />
         </div>
         <div>
@@ -166,7 +166,7 @@
       </Card>
 
       <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success">
           <CheckSquare class="w-6 h-6" />
         </div>
         <div>
@@ -188,7 +188,7 @@
         </div>
         <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
           {#each announcements as ann}
-            <div class="p-4 border border-border/80 rounded-xl bg-muted/5 flex flex-col gap-1.5">
+            <div class="p-4 border border-border/80 rounded-md bg-muted/5 flex flex-col gap-1.5">
               <div class="flex justify-between items-start gap-4">
                 <span class="text-sm font-bold text-foreground">{ann.title}</span>
                 <Badge variant="info" class="text-3xs">Announcement</Badge>
@@ -208,12 +208,12 @@
       <!-- Meetings Panel -->
       <Card class="flex flex-col gap-4">
         <div class="flex items-center gap-2 border-b border-border/40 pb-2">
-          <Calendar class="w-5 h-5 text-emerald-500" />
+          <Calendar class="w-5 h-5 text-success" />
           <h3 class="text-lg font-bold text-foreground">Upcoming Project Reviews</h3>
         </div>
         <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
           {#each meetings as meet}
-            <div class="p-4 border border-emerald-500/10 rounded-xl bg-emerald-500/5 flex flex-col gap-2">
+            <div class="p-4 border border-success/10 rounded-md bg-success/5 flex flex-col gap-2">
               <div class="flex justify-between items-start gap-4">
                 <span class="text-sm font-bold text-foreground">{meet.title}</span>
                 <Badge variant="success" class="text-3xs">Scheduled</Badge>
@@ -241,7 +241,7 @@
       <h3 class="text-xl font-bold text-foreground">My Teams & Projects</h3>
 
       {#if projects.length === 0}
-        <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center">
+        <div class="py-12 border border-dashed rounded-lg flex flex-col items-center justify-center text-center">
           <FolderKanban class="w-12 h-12 text-muted-foreground/30 mb-3" />
           <p class="text-sm font-bold text-muted-foreground">No active academic projects</p>
           <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Create a new project or seek invitations from classmates to get started.</p>
@@ -306,7 +306,7 @@
           placeholder="e.g. Decentralized Study Hub" 
           bind:value={newProjectName} 
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
         />
       </div>
 
@@ -318,7 +318,7 @@
           bind:value={newProjectDesc} 
           required
           rows="4"
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
         ></textarea>
       </div>
 
@@ -327,7 +327,7 @@
         <select
           id="p-dept"
           bind:value={newProjectDept}
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
         >
           {#each departments as d}
             <option value={d.name}>{d.name}</option>
@@ -336,7 +336,7 @@
       </div>
 
       <!-- Warning note about approvals -->
-      <div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl flex gap-2.5 text-xs">
+      <div class="p-3 bg-warning/10 border border-warning/20 text-warning  rounded-md flex gap-2.5 text-xs">
         <ShieldAlert class="w-4 h-4 shrink-0 mt-0.5" />
         <span>New projects must be approved by faculty members before matching teams and tasks can be managed.</span>
       </div>

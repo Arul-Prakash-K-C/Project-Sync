@@ -139,14 +139,14 @@
     </div>
 
     {#if pendingProjects.length === 0}
-      <div class="py-12 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center">
+      <div class="py-12 border border-dashed rounded-lg flex flex-col items-center justify-center text-center">
         <CheckSquare class="w-12 h-12 text-muted-foreground/30 mb-3" />
         <p class="text-sm font-bold text-muted-foreground">All proposals reviewed</p>
       </div>
     {:else}
       <div class="grid grid-cols-1 gap-4">
         {#each pendingProjects as p}
-          <div class="p-6 border border-border bg-card rounded-2xl shadow-2xs flex flex-col gap-4">
+          <div class="p-6 border border-border bg-card rounded-lg shadow-2xs flex flex-col gap-4">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-border/40 pb-3">
               <div class="flex-1 flex flex-col gap-1 min-w-0">
                 <div class="flex items-center gap-3">
@@ -159,19 +159,19 @@
               <div class="flex items-center gap-2 self-end md:self-auto shrink-0">
                 <button 
                   onclick={() => rejectProject(p.id)}
-                  class="px-3 py-1.5 bg-rose-500/10 text-rose-600 hover:bg-rose-500 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  class="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive/100 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Reject
                 </button>
                 <button 
                   onclick={() => requestRevision(p)}
-                  class="px-3 py-1.5 bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  class="px-3 py-1.5 bg-warning/10 text-warning hover:bg-warning hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Request Revision
                 </button>
                 <button 
                   onclick={() => approveProject(p.id)}
-                  class="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  class="px-3 py-1.5 bg-success/10 text-success hover:bg-success hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Approve Proposal
                 </button>
@@ -180,14 +180,14 @@
 
             <div class="text-sm">
               <p class="font-bold text-foreground mb-1">Proposal Details:</p>
-              <p class="text-muted-foreground leading-relaxed bg-muted/10 p-3 rounded-xl border">{p.description}</p>
+              <p class="text-muted-foreground leading-relaxed bg-muted/10 p-3 rounded-md border">{p.description}</p>
             </div>
 
             <div class="flex flex-col gap-2">
               <p class="text-xs font-bold text-foreground">Team Composition:</p>
               <div class="flex flex-wrap gap-3">
                 {#each p.members as member}
-                  <div class="flex items-center gap-2 bg-muted/20 px-3 py-1 rounded-xl border border-border/40">
+                  <div class="flex items-center gap-2 bg-muted/20 px-3 py-1 rounded-md border border-border/40">
                     <img src={member.avatar} alt={member.name} class="w-6 h-6 rounded-full" />
                     <span class="text-xs font-bold text-foreground">{member.name} ({member.role})</span>
                   </div>
@@ -204,7 +204,7 @@
 <!-- Request Revision Comment Dialog -->
 <Dialog bind:open={proposalCommentDialogOpen} title="Request Revision on Project Proposal">
   <form onsubmit={submitRevisionRequest} class="flex flex-col gap-4">
-    <div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl flex gap-2 text-xs">
+    <div class="p-3 bg-warning/10 border border-warning/20 text-warning  rounded-md flex gap-2 text-xs">
       <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5" />
       <span>Detail what changes or clarifications the students need to make before the proposal can be approved.</span>
     </div>
@@ -217,7 +217,7 @@
         bind:value={proposalCommentText}
         required
         rows="4"
-        class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
       ></textarea>
     </div>
 

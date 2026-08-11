@@ -54,7 +54,7 @@
       <div class="flex items-center gap-2">
         <select
           bind:value={filterType}
-          class="px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+          class="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
         >
           <option value="all">All Actions</option>
           <option value="project">Project Approvals</option>
