@@ -109,7 +109,7 @@
       <!-- Review details & feedback panel -->
       <Card>
         {#if reviewingReport}
-          {@const reviewingProj = projects.find(p => p.id === reviewingReport.projectId)}
+          {@const reviewingProj = projects.find(p => p.id === reviewingReport!.projectId)}
           <div class="flex flex-col gap-4">
             <div class="flex justify-between items-start border-b border-border/40 pb-2">
               <div class="flex flex-col min-w-0">
