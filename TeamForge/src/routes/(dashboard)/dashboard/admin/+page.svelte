@@ -39,10 +39,10 @@
   const projectsByStatus = $derived(
     (
       [
-        { status: 'active', label: 'Active', barClass: 'bg-emerald-500' },
-        { status: 'pending', label: 'Pending', barClass: 'bg-amber-500' },
+        { status: 'active', label: 'Active', barClass: 'bg-success' },
+        { status: 'pending', label: 'Pending', barClass: 'bg-warning' },
         { status: 'archived', label: 'Archived', barClass: 'bg-muted-foreground' },
-        { status: 'rejected', label: 'Rejected', barClass: 'bg-rose-500' }
+        { status: 'rejected', label: 'Rejected', barClass: 'bg-destructive/100' }
       ] as const
     ).map((s) => ({ ...s, count: projects.filter((p) => p.status === s.status).length }))
   );
@@ -188,7 +188,7 @@
     <!-- Quick Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary">
           <Building2 class="w-6 h-6" />
         </div>
         <div>
@@ -198,7 +198,7 @@
       </Card>
 
       <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning">
           <Building2 class="w-6 h-6" />
         </div>
         <div>
@@ -208,7 +208,7 @@
       </Card>
 
       <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success">
           <FolderKanban class="w-6 h-6" />
         </div>
         <div>
@@ -299,7 +299,7 @@
               {#each users as u}
                 <tr class="hover:bg-muted/10 transition-colors">
                   <td class="p-4 flex items-center gap-3">
-                    <img src={u.avatar} alt={u.name} class="w-9 h-9 rounded-xl bg-muted" />
+                    <img src={u.avatar} alt={u.name} class="w-9 h-9 rounded-md bg-muted" />
                     <div class="flex flex-col min-w-0">
                       <span class="font-bold text-foreground truncate">{u.name}</span>
                       <span class="text-3xs text-muted-foreground truncate">{u.email}</span>
@@ -332,7 +332,7 @@
                       <button 
                         onclick={() => deleteUser(u.id)}
                         disabled={u.id === auth.user?.id}
-                        class="p-1.5 border border-rose-500/10 text-rose-600 hover:bg-rose-500 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-30"
+                        class="p-1.5 border border-destructive/10 text-destructive hover:bg-destructive/100 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-30"
                       >
                         <Trash2 class="w-3.5 h-3.5" />
                       </button>
@@ -375,7 +375,7 @@
             </div>
           </Card>
         {:else}
-          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
             No academic departments registered yet. Use "Add Department" to create one.
           </div>
         {/each}
@@ -394,7 +394,7 @@
             placeholder="e.g. Mechanical Engineering" 
             bind:value={newDeptName} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
           />
         </div>
         <div class="flex flex-col gap-1.5">
@@ -405,7 +405,7 @@
             placeholder="e.g. ME" 
             bind:value={newDeptCode} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
           />
         </div>
       </div>
@@ -417,7 +417,7 @@
           type="text" 
           placeholder="e.g. Dr. Arthur Pendelton" 
           bind:value={newDeptHead} 
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
         />
       </div>
 
@@ -428,7 +428,7 @@
           placeholder="Department objectives..." 
           bind:value={newDeptDesc} 
           rows="3"
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
         ></textarea>
       </div>
 

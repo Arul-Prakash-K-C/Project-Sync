@@ -77,7 +77,7 @@
               id="note-proj"
               bind:value={selectedNotesProjectId}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
             >
               {#each activeProjects as p}
                 <option value={p.id}>{p.name}</option>
@@ -90,7 +90,7 @@
             <select 
               id="note-stud"
               bind:value={selectedNotesStudentId}
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
             >
               <option value="">Entire Team Workspace</option>
               {#if currentNotesProject}
@@ -109,7 +109,7 @@
               bind:value={notesContent}
               required
               rows="5"
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
             ></textarea>
           </div>
 
@@ -129,10 +129,10 @@
               {@const proj = projects.find(p => p.id === note.projectId)}
               {#if proj}
                 {@const targetStud = note.studentId ? proj.members.find(m => m.userId === note.studentId) : null}
-                <div class="p-4 border rounded-xl bg-card flex flex-col gap-2 relative group hover:border-primary/20 transition-all">
+                <div class="p-4 border rounded-md bg-card flex flex-col gap-2 relative group hover:border-primary/20 transition-all">
                   <button 
                     onclick={() => deleteNote(note.id)}
-                    class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 bg-rose-500/10 text-rose-600 rounded-lg transition-opacity cursor-pointer"
+                    class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 p-1.5 bg-destructive/10 text-destructive rounded-lg transition-opacity cursor-pointer"
                     title="Delete Note"
                   >
                     <Trash2 class="w-3.5 h-3.5" />
@@ -147,7 +147,7 @@
                     {/if}
                   </div>
 
-                  <p class="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap mt-1 bg-muted/10 p-3 rounded-xl border">{note.content}</p>
+                  <p class="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap mt-1 bg-muted/10 p-3 rounded-md border">{note.content}</p>
                   
                   <span class="text-[10px] text-muted-foreground mt-1 font-semibold">Last updated: {new Date(note.updatedAt).toLocaleString()}</span>
                 </div>

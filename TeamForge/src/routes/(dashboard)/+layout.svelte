@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, getContext } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Notification } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
@@ -142,11 +143,11 @@
       <!-- Sidebar Header -->
       <div class="h-16 border-b border-border/30 flex items-center justify-between px-5 {sidebarOpen ? '' : 'justify-center px-0'}">
         <a href="/" class="flex items-center gap-3 overflow-hidden">
-          <div class="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black shrink-0 text-lg shadow-md">
+          <div class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-sm shrink-0 shadow-md">
             TF
           </div>
           {#if sidebarOpen}
-            <span class="text-lg font-bold tracking-tight text-foreground transition-opacity">TeamForge</span>
+            <span class="font-display text-lg text-foreground transition-opacity">TeamForge</span>
           {/if}
         </a>
         <button 
@@ -161,13 +162,15 @@
       <!-- Navigation Links -->
       <nav class="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
         {#each links as item}
+          {@const isActive = $page.url.pathname === item.href}
           <a
             href={item.href}
             onclick={() => mobileSidebarOpen = false}
-            class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group hover:bg-secondary
-              text-muted-foreground hover:text-foreground {sidebarOpen ? '' : 'justify-center px-0'}"
+            class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all group
+              {isActive ? 'bg-accent/10 text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}
+              {sidebarOpen ? '' : 'justify-center px-0'}"
           >
-            <item.icon class="w-5 h-5 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+            <item.icon class="w-5 h-5 shrink-0 transition-colors {isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-accent'}" />
             {#if sidebarOpen}
               <span class="truncate">{item.label}</span>
             {/if}
@@ -181,7 +184,7 @@
           <img 
             src={auth.user.avatar} 
             alt={auth.user.name} 
-            class="w-10 h-10 rounded-xl border border-primary/20 shrink-0 bg-muted"
+            class="w-10 h-10 rounded-md border border-primary/20 shrink-0 bg-muted"
           />
           {#if sidebarOpen}
             <div class="flex flex-col min-w-0">
@@ -194,7 +197,7 @@
         {#if sidebarOpen}
           <button 
             onclick={handleLogout}
-            class="w-full flex items-center justify-center gap-2 mt-2 py-2 border border-destructive/20 text-destructive bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            class="w-full flex items-center justify-center gap-2 mt-2 py-2 border border-destructive/20 text-destructive bg-destructive/5 hover:bg-destructive hover:text-destructive-foreground rounded-md text-xs font-semibold transition-all cursor-pointer"
           >
             <LogOut class="w-4 h-4" />
             Sign Out
@@ -202,7 +205,7 @@
         {:else}
           <button 
             onclick={handleLogout}
-            class="w-full flex items-center justify-center py-2 text-destructive hover:bg-destructive/10 rounded-xl transition-colors cursor-pointer"
+            class="w-full flex items-center justify-center py-2 text-destructive hover:bg-destructive/10 rounded-md transition-colors cursor-pointer"
             title="Sign Out"
           >
             <LogOut class="w-5 h-5" />
@@ -219,12 +222,12 @@
           <!-- Mobile Sidebar Toggle -->
           <button
             onclick={() => mobileSidebarOpen = !mobileSidebarOpen}
-            class="p-2 border border-border rounded-xl hover:bg-secondary cursor-pointer md:hidden text-foreground"
+            class="p-2 border border-border rounded-md hover:bg-secondary cursor-pointer md:hidden text-foreground"
           >
             <Menu class="w-5 h-5" />
           </button>
           <div class="flex flex-col">
-            <h1 class="text-sm font-bold text-foreground">Workspace</h1>
+            <h1 class="font-display text-sm text-foreground">Workspace</h1>
             <p class="text-xs text-muted-foreground">{auth.user.department}</p>
           </div>
         </div>
@@ -233,21 +236,21 @@
           <!-- Notification Bell -->
           <button 
             onclick={() => notifOpen = true}
-            class="relative p-2.5 rounded-xl border border-border hover:bg-secondary cursor-pointer text-foreground"
+            class="relative p-2.5 rounded-md border border-border hover:bg-secondary cursor-pointer text-foreground"
           >
             <Bell class="w-4.5 h-4.5" />
             {#if unreadCount > 0}
-              <span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-primary border-2 border-background animate-pulse"></span>
+              <span class="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-accent border-2 border-background animate-pulse"></span>
             {/if}
           </button>
 
           <!-- Theme Toggle -->
           <button 
             onclick={() => themeCtx?.toggleTheme()} 
-            class="p-2.5 rounded-xl border border-border hover:bg-secondary transition-colors cursor-pointer text-foreground"
+            class="p-2.5 rounded-md border border-border hover:bg-secondary transition-colors cursor-pointer text-foreground"
           >
             {#if themeCtx?.isDark}
-              <Sun class="w-4.5 h-4.5 text-amber-400" />
+              <Sun class="w-4.5 h-4.5 text-accent" />
             {:else}
               <Moon class="w-4.5 h-4.5" />
             {/if}
@@ -277,10 +280,10 @@
       <div class="fixed right-0 top-0 bottom-0 w-80 max-w-full bg-card border-l border-border shadow-2xl z-50 flex flex-col">
         <div class="h-16 border-b border-border/40 px-5 flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <Bell class="w-5 h-5 text-primary" />
-            <span class="font-bold text-foreground">Notifications</span>
+            <Bell class="w-5 h-5 text-accent" />
+            <span class="font-display text-foreground">Notifications</span>
             {#if unreadCount > 0}
-              <span class="text-xs bg-primary text-primary-foreground font-black px-2 py-0.5 rounded-full">{unreadCount}</span>
+              <span class="font-mono text-xs bg-accent text-accent-foreground font-bold px-2 py-0.5 rounded-full">{unreadCount}</span>
             {/if}
           </div>
           <button 
@@ -301,8 +304,8 @@
           {:else}
             {#each notifications as n}
               <div 
-                class="p-3 border rounded-xl flex flex-col gap-1 transition-all relative group
-                  {n.read ? 'border-border/60 bg-muted/10' : 'border-primary/20 bg-primary/5'}"
+                class="p-3 border rounded-md flex flex-col gap-1 transition-all relative group
+                  {n.read ? 'border-border/60 bg-muted/10' : 'border-accent/25 bg-accent/5'}"
               >
                 <div class="flex justify-between items-start">
                   <span class="text-xs font-bold text-foreground">{n.title}</span>
@@ -315,7 +318,7 @@
                   </button>
                 </div>
                 <p class="text-xs text-muted-foreground leading-relaxed">{n.description}</p>
-                <span class="text-[10px] text-muted-foreground/70 mt-1">{new Date(n.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                <span class="font-mono text-[10px] text-muted-foreground/70 mt-1">{new Date(n.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
               </div>
             {/each}
           {/if}

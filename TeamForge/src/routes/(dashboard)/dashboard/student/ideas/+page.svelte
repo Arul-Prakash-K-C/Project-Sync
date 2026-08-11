@@ -254,7 +254,7 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
       <div>
         <h2 class="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-          <Lightbulb class="w-7 h-7 text-amber-500 fill-amber-500/10" />
+          <Lightbulb class="w-7 h-7 text-warning fill-warning/10" />
           Project Idea Board
         </h2>
         <p class="text-sm text-muted-foreground mt-1">Publish project sketches, target tech stacks, and team requirements to gather your ideal project peers.</p>
@@ -269,7 +269,7 @@
     <div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
       
       <!-- Custom Tabs -->
-      <div class="flex p-1 rounded-xl bg-secondary/50 border border-border max-w-md w-full lg:w-80">
+      <div class="flex p-1 rounded-md bg-secondary/50 border border-border max-w-md w-full lg:w-80">
         <button 
           onclick={() => activeTab = 'explore'}
           class="flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex justify-center items-center gap-1.5
@@ -305,7 +305,7 @@
             type="text" 
             placeholder="Search ideas, skills, technologies..." 
             bind:value={searchQuery}
-            class="w-full pl-9 pr-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full pl-9 pr-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             id="ideas-search-input"
           />
         </div>
@@ -314,7 +314,7 @@
         <div class="relative shrink-0 min-w-48">
           <select 
             bind:value={selectedDomain}
-            class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+            class="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
             id="domain-filter-select"
           >
             <option value="All">All Domains</option>
@@ -364,7 +364,7 @@
             {#if activeTab === 'explore'}
               <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Match Score</span>
               <div class="flex items-center gap-1.5 mt-1 font-extrabold text-sm text-foreground bg-primary/5 px-2.5 py-1 rounded-full border border-primary/10">
-                <Sparkles class="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+                <Sparkles class="w-3.5 h-3.5 text-warning fill-warning/20" />
                 {calculateCompatibility(idea)}% Match
               </div>
             {:else}
@@ -386,7 +386,7 @@
           <div>
             <div class="flex gap-4">
               <!-- Avatar or Bulb -->
-              <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+              <div class="w-12 h-12 rounded-md bg-warning/10 border border-warning/20 flex items-center justify-center text-warning shrink-0">
                 <Lightbulb class="w-6 h-6" />
               </div>
               <div class="flex flex-col min-w-0 pr-28">
@@ -456,7 +456,7 @@
               {#if activeTab === 'my-ideas'}
                 <button 
                   onclick={() => openEditModal(idea)}
-                  class="p-2 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/40 rounded-xl transition-all cursor-pointer"
+                  class="p-2 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/40 rounded-md transition-all cursor-pointer"
                   title="Edit Idea"
                   id="btn-edit-idea-{idea.id}"
                 >
@@ -464,7 +464,7 @@
                 </button>
                 <button 
                   onclick={() => confirmDelete(idea.id)}
-                  class="p-2 border border-rose-500/20 text-rose-500 hover:text-white hover:bg-rose-500 rounded-xl transition-all cursor-pointer"
+                  class="p-2 border border-destructive/20 text-destructive hover:text-white hover:bg-destructive/100 rounded-md transition-all cursor-pointer"
                   title="Delete Idea"
                   id="btn-delete-idea-{idea.id}"
                 >
@@ -485,7 +485,7 @@
 
         </Card>
       {:else}
-        <div class="col-span-full py-16 border border-dashed rounded-2xl flex flex-col items-center justify-center text-center bg-card/10">
+        <div class="col-span-full py-16 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-card/10">
           <Lightbulb class="w-14 h-14 text-muted-foreground/30 mb-3" />
           <p class="text-sm font-bold text-muted-foreground">No project ideas found</p>
           <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Try tweaking your search keywords, changing the domain filter, or launch your own project idea proposal.</p>
@@ -509,7 +509,7 @@
             placeholder="e.g. Smart Campus Parking Assistant" 
             bind:value={title} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
         </div>
 
@@ -522,7 +522,7 @@
             bind:value={description} 
             required
             rows="4"
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
           ></textarea>
         </div>
 
@@ -532,7 +532,7 @@
           <select 
             id="idea-domain"
             bind:value={domain}
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
           >
             {#each domains as d}
               <option value={d}>{d}</option>
@@ -550,7 +550,7 @@
             max="10"
             bind:value={teamSizeRequirement} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
         </div>
 
@@ -562,7 +562,7 @@
             type="text" 
             placeholder="e.g. Svelte, Python, IoT" 
             bind:value={skillsInput} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
           {#if parseCommaInput(skillsInput).length > 0}
             <div class="flex flex-wrap gap-1 mt-1">
@@ -581,7 +581,7 @@
             type="text" 
             placeholder="e.g. OpenCV, Raspberry Pi" 
             bind:value={techInput} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
           {#if parseCommaInput(techInput).length > 0}
             <div class="flex flex-wrap gap-1 mt-1">
@@ -605,7 +605,7 @@
                 class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
-                <Eye class="w-4 h-4 text-emerald-500" />
+                <Eye class="w-4 h-4 text-success" />
                 Public (Show on board for everyone)
               </span>
             </label>
@@ -628,7 +628,7 @@
       </div>
 
       <!-- Info Alert -->
-      <div class="p-3 bg-primary/5 border border-primary/20 text-primary dark:text-primary-foreground/90 rounded-xl flex gap-2.5 text-xs mt-2">
+      <div class="p-3 bg-primary/5 border border-primary/20 text-primary dark:text-primary-foreground/90 rounded-md flex gap-2.5 text-xs mt-2">
         <Info class="w-4 h-4 shrink-0 mt-0.5" />
         <span>Publishing public ideas lets other students search for them and express interest in joining your team.</span>
       </div>
@@ -654,7 +654,7 @@
             placeholder="e.g. Smart Campus Parking Assistant" 
             bind:value={title} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
         </div>
 
@@ -667,7 +667,7 @@
             bind:value={description} 
             required
             rows="4"
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
           ></textarea>
         </div>
 
@@ -677,7 +677,7 @@
           <select 
             id="edit-idea-domain"
             bind:value={domain}
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
           >
             {#each domains as d}
               <option value={d}>{d}</option>
@@ -695,7 +695,7 @@
             max="10"
             bind:value={teamSizeRequirement} 
             required
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
         </div>
 
@@ -707,7 +707,7 @@
             type="text" 
             placeholder="e.g. Svelte, Python, IoT" 
             bind:value={skillsInput} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
           {#if parseCommaInput(skillsInput).length > 0}
             <div class="flex flex-wrap gap-1 mt-1">
@@ -726,7 +726,7 @@
             type="text" 
             placeholder="e.g. OpenCV, Raspberry Pi" 
             bind:value={techInput} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
           {#if parseCommaInput(techInput).length > 0}
             <div class="flex flex-wrap gap-1 mt-1">
@@ -750,7 +750,7 @@
                 class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
-                <Eye class="w-4 h-4 text-emerald-500" />
+                <Eye class="w-4 h-4 text-success" />
                 Public (Show on board for everyone)
               </span>
             </label>
@@ -782,7 +782,7 @@
   <!-- Delete Confirmation Dialog -->
   <Dialog bind:open={deleteDialogOpen} title="Confirm Deletion">
     <div class="flex flex-col gap-4" id="delete-confirmation-container">
-      <div class="flex items-start gap-3 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 rounded-xl">
+      <div class="flex items-start gap-3 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
         <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
         <div class="flex flex-col">
           <span class="text-xs font-bold">Are you absolutely sure?</span>

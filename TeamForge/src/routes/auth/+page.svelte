@@ -86,7 +86,7 @@
   <div class="w-full max-w-lg relative z-10 flex flex-col gap-6">
     <!-- Brand Title -->
     <a href="/" class="flex items-center gap-2 self-center hover:scale-102 transition-transform">
-      <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-black text-xl shadow-lg shadow-primary/30">
+      <div class="w-10 h-10 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-black text-xl shadow-lg shadow-primary/30">
         TF
       </div>
       <span class="text-2xl font-bold tracking-tight text-foreground">TeamForge</span>
@@ -119,7 +119,7 @@
                 placeholder="you@university.edu" 
                 bind:value={loginEmail}
                 required
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                class="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -134,7 +134,7 @@
                 placeholder="••••••••"
                 bind:value={loginPassword}
                 required
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                class="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -189,7 +189,7 @@
                 placeholder="Jane Doe" 
                 bind:value={registerName}
                 required
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                class="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -204,7 +204,7 @@
                 placeholder="jane@university.edu" 
                 bind:value={registerEmail}
                 required
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                class="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -220,7 +220,7 @@
                 bind:value={registerPassword}
                 required
                 minlength="6"
-                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                class="w-full pl-10 pr-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
           </div>
@@ -233,7 +233,7 @@
                 <button
                   type="button"
                   onclick={() => registerRole = r as any}
-                  class="py-2.5 border rounded-xl text-xs font-semibold capitalize transition-all cursor-pointer
+                  class="py-2.5 border rounded-md text-xs font-semibold capitalize transition-all cursor-pointer
                     {registerRole === r 
                       ? 'bg-primary/10 border-primary text-primary' 
                       : 'border-border text-muted-foreground hover:bg-muted'}"
@@ -250,7 +250,7 @@
             <select
               id="reg-dept"
               bind:value={registerDept}
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
             >
               {#each departments as d}
                 <option value={d.name}>{d.name}</option>
@@ -265,7 +265,7 @@
               <select
                 id="reg-year"
                 bind:value={registerYear}
-                class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
+                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
               >
                 <option value="Year 1">Year 1 (Freshman)</option>
                 <option value="Year 2">Year 2 (Sophomore)</option>

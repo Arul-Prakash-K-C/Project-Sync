@@ -87,10 +87,10 @@
       aria-labelledby={titleId}
       tabindex="-1"
       transition:scale={{ duration: 150, start: 0.96 }}
-      class="relative w-full max-w-lg border rounded-2xl shadow-xl bg-card text-card-foreground p-6 z-10 flex flex-col gap-4 max-h-[85vh] overflow-y-auto focus:outline-none {className}"
+      class="relative w-full max-w-lg border rounded-lg shadow-xl bg-card text-card-foreground p-6 z-10 flex flex-col gap-4 max-h-[85vh] overflow-y-auto focus:outline-none {className}"
     >
       <div class="flex items-center justify-between border-b border-border pb-3">
-        <h3 id={titleId} class="text-lg font-semibold tracking-tight text-foreground">{title}</h3>
+        <h3 id={titleId} class="font-display text-lg text-foreground">{title}</h3>
         <button
           onclick={close}
           aria-label="Close dialog"

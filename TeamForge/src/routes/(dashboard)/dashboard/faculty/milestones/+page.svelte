@@ -184,7 +184,7 @@
               id="mil-proj"
               bind:value={selectedMilestoneProjectId}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
             >
               {#each activeProjects as p}
                 <option value={p.id}>{p.name}</option>
@@ -200,7 +200,7 @@
               placeholder="e.g. Setup API Endpoints" 
               bind:value={milestoneTitle}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
             />
           </div>
 
@@ -211,7 +211,7 @@
               type="date" 
               bind:value={milestoneDeadline}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
             />
           </div>
 
@@ -233,7 +233,7 @@
             <h3 class="text-lg font-bold text-foreground">Assigned Milestones Checklist</h3>
             <select 
               bind:value={selectedMilestoneProjectId}
-              class="px-3 py-1.5 rounded-xl border border-border bg-background text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
+              class="px-3 py-1.5 rounded-md border border-border bg-background text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
               aria-label="Filter milestones by project"
             >
               {#each activeProjects as p}
@@ -246,10 +246,10 @@
           {#if activeProj}
             <div class="flex flex-col gap-3">
               {#each activeProj.milestones as m}
-                <div class="p-4 border rounded-xl bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
+                <div class="p-4 border rounded-md bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
                   <div class="flex items-center gap-3">
                     {#if m.completed}
-                      <CheckCircle2 class="w-5 h-5 text-emerald-500 fill-emerald-500/10 shrink-0" />
+                      <CheckCircle2 class="w-5 h-5 text-success fill-success/10 shrink-0" />
                     {:else}
                       <Circle class="w-5 h-5 text-muted-foreground shrink-0" />
                     {/if}
@@ -271,7 +271,7 @@
                       title={m.locked ? 'Unlock Milestone' : 'Lock Milestone'}
                     >
                       {#if m.locked}
-                        <Lock class="w-3.5 h-3.5 text-rose-500" />
+                        <Lock class="w-3.5 h-3.5 text-destructive" />
                       {:else}
                         <Unlock class="w-3.5 h-3.5" />
                       {/if}
@@ -295,7 +295,7 @@
 
                     <button 
                       onclick={() => deleteMilestone(activeProj.id, m.id)}
-                      class="p-2 border rounded-lg hover:bg-rose-500/10 text-rose-600 cursor-pointer transition-colors"
+                      class="p-2 border rounded-lg hover:bg-destructive/10 text-destructive cursor-pointer transition-colors"
                       title="Delete Milestone"
                     >
                       <Trash2 class="w-3.5 h-3.5" />

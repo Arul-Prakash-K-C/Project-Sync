@@ -87,7 +87,7 @@
                 onkeydown={(e) => e.key === 'Enter' && (reviewingReport = rep)}
                 role="button"
                 tabindex="0"
-                class="p-4 border rounded-2xl hover:border-primary/20 bg-card cursor-pointer transition-all flex justify-between items-center"
+                class="p-4 border rounded-lg hover:border-primary/20 bg-card cursor-pointer transition-all flex justify-between items-center"
               >
                 <div class="flex flex-col min-w-0">
                   <span class="text-sm font-extrabold text-foreground truncate">Week {rep.weekNumber} Report - {proj.name}</span>
@@ -99,7 +99,7 @@
               </div>
             {/if}
           {:else}
-            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
               No weekly progress reports submitted yet.
             </div>
           {/each}
@@ -120,15 +120,15 @@
             </div>
 
             <div class="flex flex-col gap-3 text-xs">
-              <div class="p-3 bg-muted/10 border rounded-xl">
+              <div class="p-3 bg-muted/10 border rounded-md">
                 <span class="font-bold text-foreground/80 block mb-0.5">Key Achievements:</span>
                 <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.achievements}</p>
               </div>
-              <div class="p-3 bg-muted/10 border rounded-xl">
+              <div class="p-3 bg-muted/10 border rounded-md">
                 <span class="font-bold text-foreground/80 block mb-0.5">Planned Work:</span>
                 <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.plannedTasks}</p>
               </div>
-              <div class="p-3 bg-muted/10 border rounded-xl">
+              <div class="p-3 bg-muted/10 border rounded-md">
                 <span class="font-bold text-foreground/80 block mb-0.5">Blockers:</span>
                 <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.blockers || 'None'}</p>
               </div>
@@ -141,7 +141,7 @@
                 placeholder="Provide guidance, note modifications, or approve weekly report details..." 
                 bind:value={reviewFeedbackText}
                 rows="3"
-                class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
               ></textarea>
               
               <div class="flex gap-2 justify-end mt-1">

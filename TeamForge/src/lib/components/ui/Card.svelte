@@ -28,7 +28,7 @@
   </div>
 {:else}
   <div
-    class="rounded-2xl border p-6 transition-all duration-300 shadow-elevated
+    class="rounded-lg border p-6 transition-all duration-300 shadow-elevated
       {glass ? 'glass-card' : 'bg-card text-card-foreground border-border'}
       {hoverable ? 'hover:shadow-lg hover:border-primary/35 hover:-translate-y-0.5' : ''}
       {className}"

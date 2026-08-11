@@ -99,7 +99,7 @@
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {#each activeProjects as p}
-          <div class="p-4 border rounded-xl bg-card flex flex-col gap-4">
+          <div class="p-4 border rounded-md bg-card flex flex-col gap-4">
             <h4 class="font-extrabold text-foreground text-sm border-b border-border/40 pb-2">{p.name} Breakdown</h4>
             
             <div class="flex flex-col gap-3">
@@ -121,7 +121,7 @@
             </div>
           </div>
         {:else}
-          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
             No active teams in your department yet.
           </div>
         {/each}

@@ -103,7 +103,7 @@
           </div>
 
           {#if announceTargetType === 'team'}
-            <div class="flex flex-col gap-1.5 p-3 border rounded-xl bg-muted/10">
+            <div class="flex flex-col gap-1.5 p-3 border rounded-md bg-muted/10">
               <span class="text-xs font-bold text-foreground mb-1 block">Select Teams:</span>
               {#each activeProjects as p}
                 <label class="flex items-center gap-2 text-xs font-semibold text-muted-foreground py-0.5 cursor-pointer">
@@ -124,7 +124,7 @@
               placeholder="e.g. Mid-term source code submission notice" 
               bind:value={announceTitle}
               required
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
             />
           </div>
 
@@ -136,7 +136,7 @@
               bind:value={announceContent}
               required
               rows="4"
-              class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
             ></textarea>
           </div>
 
@@ -153,7 +153,7 @@
           
           <div class="flex flex-col gap-3">
             {#each announcements as ann}
-              <div class="p-4 border rounded-xl bg-card flex flex-col gap-2">
+              <div class="p-4 border rounded-md bg-card flex flex-col gap-2">
                 <div class="flex justify-between items-start">
                   <span class="text-sm font-bold text-foreground">{ann.title}</span>
                   <Badge variant={ann.targetType === 'all' ? 'primary' : 'info'}>

@@ -128,7 +128,7 @@
       <!-- Progress Report Card -->
       <Card class="flex flex-col justify-between h-48">
         <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+          <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
             <BarChart3 class="w-6 h-6" />
           </div>
           <div class="flex flex-col min-w-0">
@@ -147,7 +147,7 @@
       <!-- Milestone Report Card -->
       <Card class="flex flex-col justify-between h-48">
         <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shrink-0">
+          <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success shrink-0">
             <CheckSquare class="w-6 h-6" />
           </div>
           <div class="flex flex-col min-w-0">
@@ -166,7 +166,7 @@
       <!-- Student Evaluation Report Card -->
       <Card class="flex flex-col justify-between h-48">
         <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+          <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning shrink-0">
             <Award class="w-6 h-6" />
           </div>
           <div class="flex flex-col min-w-0">
@@ -185,7 +185,7 @@
       <!-- Project Status Card -->
       <Card class="flex flex-col justify-between h-48">
         <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
+          <div class="w-12 h-12 rounded-md bg-destructive/10 flex items-center justify-center text-destructive shrink-0">
             <FileText class="w-6 h-6" />
           </div>
           <div class="flex flex-col min-w-0">

@@ -356,7 +356,7 @@
             </div>
 
             {#if showMilestoneForm}
-              <form onsubmit={addMilestone} class="p-4 border rounded-xl flex flex-col md:flex-row gap-3 bg-muted/10 items-end">
+              <form onsubmit={addMilestone} class="p-4 border rounded-md flex flex-col md:flex-row gap-3 bg-muted/10 items-end">
                 <div class="flex-1 flex flex-col gap-1.5">
                   <label for="m-title" class="text-xs font-semibold text-foreground">Milestone Title</label>
                   <input 
@@ -383,11 +383,11 @@
 
             <div class="flex flex-col gap-2 mt-2">
               {#each project.milestones as m}
-                <div class="flex items-center justify-between p-3 border border-border/80 rounded-xl hover:bg-muted/10 transition-colors">
+                <div class="flex items-center justify-between p-3 border border-border/80 rounded-md hover:bg-muted/10 transition-colors">
                   <div class="flex items-center gap-3">
                     <button onclick={() => toggleMilestone(m.id)} class="text-muted-foreground hover:text-primary cursor-pointer transition-colors" aria-label="Toggle completed">
                       {#if m.completed}
-                        <CheckCircle2 class="w-5 h-5 text-emerald-500 fill-emerald-500/10" />
+                        <CheckCircle2 class="w-5 h-5 text-success fill-success/10" />
                       {:else}
                         <Circle class="w-5 h-5" />
                       {/if}
@@ -413,7 +413,7 @@
           <div class="flex flex-col gap-3 mt-2">
             {#each project.members as member}
               <div class="flex items-center gap-3">
-                <img src={member.avatar} alt={member.name} class="w-9 h-9 rounded-xl bg-muted" />
+                <img src={member.avatar} alt={member.name} class="w-9 h-9 rounded-md bg-muted" />
                 <div class="flex flex-col min-w-0">
                   <span class="text-sm font-bold text-foreground truncate">{member.name}</span>
                   <span class="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{member.role}</span>
@@ -436,7 +436,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-2">
           {#each ['todo', 'inprogress', 'review', 'completed'] as col}
-            <div class="flex flex-col gap-3 p-3 bg-muted/30 border rounded-2xl min-h-[500px]">
+            <div class="flex flex-col gap-3 p-3 bg-muted/30 border rounded-lg min-h-[500px]">
               <div class="flex items-center justify-between pb-1 border-b border-border">
                 <span class="text-xs font-black uppercase tracking-wider text-muted-foreground">
                   {col === 'todo' ? 'To Do' : col === 'inprogress' ? 'In Progress' : col === 'review' ? 'Review' : 'Completed'}
@@ -453,7 +453,7 @@
                     onkeydown={(e) => e.key === 'Enter' && viewTaskDetails(t)}
                     role="button"
                     tabindex="0"
-                    class="p-4 bg-card border border-border hover:border-primary/30 rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between h-40 group text-left"
+                    class="p-4 bg-card border border-border hover:border-primary/30 rounded-md shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between h-40 group text-left"
                   >
                     <div>
                       <div class="flex justify-between items-start gap-2">
@@ -488,7 +488,7 @@
                     </div>
                   </div>
                 {:else}
-                  <div class="py-8 text-center text-[10px] text-muted-foreground/60 italic border border-dashed rounded-xl">
+                  <div class="py-8 text-center text-[10px] text-muted-foreground/60 italic border border-dashed rounded-md">
                     No tasks here yet
                   </div>
                 {/each}
@@ -510,7 +510,7 @@
           </div>
 
           {#if showThreadForm}
-            <form onsubmit={handleCreateThread} class="p-4 border border-border/80 rounded-2xl flex flex-col gap-3 bg-muted/10">
+            <form onsubmit={handleCreateThread} class="p-4 border border-border/80 rounded-lg flex flex-col gap-3 bg-muted/10">
               <div class="flex flex-col gap-1.5">
                 <label for="th-title" class="text-xs font-semibold text-foreground">Thread Title</label>
                 <input 
@@ -519,7 +519,7 @@
                   placeholder="e.g. Design assets link" 
                   bind:value={threadTitle}
                   required
-                  class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                  class="w-full px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
                 />
               </div>
               <div class="flex flex-col gap-1.5">
@@ -530,7 +530,7 @@
                   bind:value={threadContent}
                   required
                   rows="4"
-                  class="w-full px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                  class="w-full px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
                 ></textarea>
               </div>
               <div class="flex justify-end gap-2">
@@ -547,7 +547,7 @@
                 onkeydown={(e) => e.key === 'Enter' && (selectedThread = th)}
                 role="button"
                 tabindex="0"
-                class="p-4 border rounded-xl hover:border-primary/20 hover:bg-muted/5 transition-all cursor-pointer flex justify-between items-center text-left"
+                class="p-4 border rounded-md hover:border-primary/20 hover:bg-muted/5 transition-all cursor-pointer flex justify-between items-center text-left"
               >
                 <div class="flex flex-col gap-1">
                   <span class="text-sm font-bold text-foreground hover:text-primary transition-colors">{th.title}</span>
@@ -580,7 +580,7 @@
                 <button onclick={() => selectedThread = null} class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">Close</button>
               </div>
 
-              <p class="text-xs text-muted-foreground leading-relaxed p-3 bg-muted/10 border rounded-xl">{selectedThread.content}</p>
+              <p class="text-xs text-muted-foreground leading-relaxed p-3 bg-muted/10 border rounded-md">{selectedThread.content}</p>
 
               <div class="flex flex-col gap-3 mt-2 max-h-56 overflow-y-auto pr-1">
                 {#each selectedThread.replies as rep}
@@ -648,7 +648,7 @@
               </div>
             </Card>
           {:else}
-            <div class="col-span-full py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+            <div class="col-span-full py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
               No project files uploaded yet.
             </div>
           {/each}
@@ -680,7 +680,7 @@
                     max="16" 
                     bind:value={reportWeekNumber} 
                     required
-                    class="px-4 py-2 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+                    class="px-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
                   />
                 </div>
               </div>
@@ -693,7 +693,7 @@
                   bind:value={reportAchievements} 
                   required
                   rows="3"
-                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                  class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
                 ></textarea>
               </div>
 
@@ -705,7 +705,7 @@
                   bind:value={reportPlannedTasks} 
                   required
                   rows="3"
-                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                  class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
                 ></textarea>
               </div>
 
@@ -716,7 +716,7 @@
                   placeholder="Any technical blockers or dependencies?" 
                   bind:value={reportBlockers} 
                   rows="2"
-                  class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+                  class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
                 ></textarea>
               </div>
 
@@ -730,7 +730,7 @@
 
         <div class="grid grid-cols-1 gap-4">
           {#each weeklyReports as rep}
-            <div class="p-6 border border-border bg-card rounded-2xl shadow-2xs flex flex-col gap-4 text-left">
+            <div class="p-6 border border-border bg-card rounded-lg shadow-2xs flex flex-col gap-4 text-left">
               <div class="flex justify-between items-start border-b border-border/40 pb-3">
                 <div class="flex flex-col">
                   <span class="font-extrabold text-foreground text-md">Week {rep.weekNumber} Report</span>
@@ -742,29 +742,29 @@
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div class="p-3 bg-muted/10 rounded-xl border">
+                <div class="p-3 bg-muted/10 rounded-md border">
                   <span class="font-bold text-foreground/80 block mb-1">Achievements:</span>
                   <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.achievements}</p>
                 </div>
-                <div class="p-3 bg-muted/10 rounded-xl border">
+                <div class="p-3 bg-muted/10 rounded-md border">
                   <span class="font-bold text-foreground/80 block mb-1">Planned Work:</span>
                   <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.plannedTasks}</p>
                 </div>
-                <div class="p-3 bg-muted/10 rounded-xl border">
+                <div class="p-3 bg-muted/10 rounded-md border">
                   <span class="font-bold text-foreground/80 block mb-1">Blockers:</span>
                   <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{rep.blockers || 'None'}</p>
                 </div>
               </div>
 
               {#if rep.feedback}
-                <div class="p-4 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+                <div class="p-4 bg-primary/5 border border-primary/20 rounded-md text-xs">
                   <span class="font-bold text-foreground block mb-1">Mentor Feedback:</span>
                   <p class="text-muted-foreground leading-relaxed italic">"{rep.feedback}"</p>
                 </div>
               {/if}
             </div>
           {:else}
-            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
               No weekly reports submitted yet.
             </div>
           {/each}
@@ -783,7 +783,7 @@
             <div class="flex flex-col gap-4 relative pl-6 border-l border-border mt-2">
               <!-- Stage 1 -->
               <div class="relative">
-                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-background">
+                <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full bg-success flex items-center justify-center border-2 border-background">
                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
                 </div>
                 <span class="text-xs font-bold text-foreground">1. Proposal Submitted</span>
@@ -793,7 +793,7 @@
               <!-- Stage 2 -->
               <div class="relative">
                 <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
-                  {project.status === 'active' ? 'bg-emerald-500' : project.status === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'}">
+                  {project.status === 'active' ? 'bg-success' : project.status === 'rejected' ? 'bg-destructive/100' : 'bg-warning'}">
                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
                 </div>
                 <span class="text-xs font-bold text-foreground capitalize">2. Faculty Review ({project.status})</span>
@@ -811,7 +811,7 @@
               <!-- Stage 3 -->
               <div class="relative">
                 <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
-                  {milestoneProg > 0 ? (milestoneProg === 100 ? 'bg-emerald-500' : 'bg-primary') : 'bg-muted'}">
+                  {milestoneProg > 0 ? (milestoneProg === 100 ? 'bg-success' : 'bg-primary') : 'bg-muted'}">
                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
                 </div>
                 <span class="text-xs font-bold text-foreground">3. Milestones Setup & Execution ({milestoneProg}% Done)</span>
@@ -821,7 +821,7 @@
               <!-- Stage 4 -->
               <div class="relative">
                 <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
-                  {approvedReps > 0 ? 'bg-emerald-500' : 'bg-muted'}">
+                  {approvedReps > 0 ? 'bg-success' : 'bg-muted'}">
                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
                 </div>
                 <span class="text-xs font-bold text-foreground">4. Weekly Reviews ({approvedReps} Approved)</span>
@@ -831,7 +831,7 @@
               <!-- Stage 5 -->
               <div class="relative">
                 <div class="absolute -left-[31px] top-0.5 w-4 h-4 rounded-full flex items-center justify-center border-2 border-background
-                  {allDone ? 'bg-emerald-500' : 'bg-muted'}">
+                  {allDone ? 'bg-success' : 'bg-muted'}">
                   <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
                 </div>
                 <span class="text-xs font-bold text-foreground">5. Final Submission & Evaluation</span>
@@ -851,7 +851,7 @@
             <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Supervisor Review Meetings</h3>
             <div class="flex flex-col gap-3">
               {#each meetings as meet}
-                <div class="p-4 border rounded-xl bg-card flex flex-col gap-2">
+                <div class="p-4 border rounded-md bg-card flex flex-col gap-2">
                   <div class="flex justify-between items-center">
                     <span class="text-xs font-bold text-foreground">{meet.title}</span>
                     <Badge variant={meet.status === 'scheduled' ? 'success' : 'danger'}>
@@ -880,7 +880,7 @@
           <div class="flex flex-col gap-4">
             {#each ['code', 'documentation', 'ui', 'testing', 'presentation'] as cat}
               {@const catFb = feedbackList.filter(f => f.category === cat)}
-              <div class="flex flex-col gap-2 p-3.5 border rounded-xl bg-muted/10">
+              <div class="flex flex-col gap-2 p-3.5 border rounded-md bg-muted/10">
                 <div class="flex justify-between items-center">
                   <span class="text-xs font-black uppercase tracking-wider text-primary">{cat}</span>
                   <Badge variant="secondary" class="text-3xs">{catFb.length}</Badge>
@@ -913,7 +913,7 @@
           placeholder="classmate@university.edu" 
           bind:value={inviteEmail} 
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
         />
       </div>
 
@@ -934,7 +934,7 @@
           placeholder="e.g. Implement user authentication" 
           bind:value={taskTitle} 
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
         />
       </div>
 
@@ -946,7 +946,7 @@
           bind:value={taskDesc} 
           required
           rows="3"
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
         ></textarea>
       </div>
 
@@ -956,7 +956,7 @@
           <select 
             id="t-priority"
             bind:value={taskPriority}
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -970,7 +970,7 @@
             id="t-date"
             type="date" 
             bind:value={taskDeadline} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
           />
         </div>
       </div>
@@ -980,7 +980,7 @@
         <select 
           id="t-assign"
           bind:value={taskAssignee}
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
         >
           <option value="">Unassigned</option>
           {#each project.members as member}
@@ -1003,7 +1003,7 @@
           <Badge variant={selectedTask.priority === 'high' ? 'danger' : selectedTask.priority === 'medium' ? 'warning' : 'info'}>
             {selectedTask.priority} Priority
           </Badge>
-          <p class="text-xs text-muted-foreground mt-3 leading-relaxed bg-muted/10 p-3 rounded-xl border">{selectedTask.description}</p>
+          <p class="text-xs text-muted-foreground mt-3 leading-relaxed bg-muted/10 p-3 rounded-md border">{selectedTask.description}</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4 border-y border-border/40 py-3 text-xs">
@@ -1027,7 +1027,7 @@
           <h4 class="text-xs font-black uppercase tracking-wider text-muted-foreground">Comments ({selectedTask.comments.length})</h4>
           <div class="flex flex-col gap-2 max-h-40 overflow-y-auto">
             {#each selectedTask.comments as comment}
-              <div class="p-2 border rounded-xl flex gap-2.5 items-start bg-muted/10">
+              <div class="p-2 border rounded-md flex gap-2.5 items-start bg-muted/10">
                 <img src={comment.userAvatar} alt={comment.userName} class="w-7 h-7 rounded-lg bg-muted" />
                 <div class="flex flex-col min-w-0 text-left">
                   <div class="flex justify-between items-center gap-4">
@@ -1048,9 +1048,9 @@
               placeholder="Add comment..." 
               bind:value={commentText} 
               required
-              class="flex-1 px-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none"
+              class="flex-1 px-3 py-2 rounded-md border border-border bg-background text-xs text-foreground focus:outline-none"
             />
-            <Button type="submit" variant="primary" size="sm" class="h-9 w-9 rounded-xl p-0">
+            <Button type="submit" variant="primary" size="sm" class="h-9 w-9 rounded-md p-0">
               <Send class="w-3.5 h-3.5" />
             </Button>
           </form>
@@ -1068,7 +1068,7 @@
           type="file"
           required
           onchange={(e) => (selectedFile = (e.target as HTMLInputElement).files?.[0] ?? null)}
-          class="w-full text-sm text-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer cursor-pointer"
+          class="w-full text-sm text-foreground file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer cursor-pointer"
         />
         {#if selectedFile}
           <p class="text-2xs text-muted-foreground mt-1">{selectedFile.name} — {formatBytes(selectedFile.size)}</p>
