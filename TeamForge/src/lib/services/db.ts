@@ -1,7 +1,28 @@
+import type { ZodType } from 'zod';
+import { z } from 'zod';
+import {
+  DepartmentSchema,
+  UserSchema,
+  ProjectSchema,
+  ProjectIdeaSchema,
+  TaskSchema,
+  ThreadSchema,
+  ProjectFileSchema,
+  NotificationSchema,
+  WeeklyReportSchema,
+  CategorizedFeedbackSchema,
+  MeetingSchema,
+  AnnouncementSchema,
+  FacultyNoteSchema,
+  AuditLogEntrySchema
+} from '$lib/schemas';
+
 export interface User {
   id: string;
   name: string;
   email: string;
+  /** SHA-256 hex digest. Never store or compare plaintext passwords. */
+  passwordHash?: string;
   avatar: string;
   role: 'student' | 'faculty' | 'admin';
   department: string;
@@ -173,6 +194,17 @@ export interface ProjectFile {
   version: number;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  actorId: string;
+  actorName: string;
+  action: string;
+  targetType: 'project' | 'milestone' | 'weekly_report' | 'announcement' | 'feedback';
+  targetId?: string;
+  targetLabel?: string;
+  createdAt: string;
+}
+
 export interface Department {
   id: string;
   name: string;
@@ -194,6 +226,7 @@ const defaultUsers: User[] = [
     id: 'student_alex',
     name: 'Alex Mercer',
     email: 'alex@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Alex',
     role: 'student',
     department: 'Computer Science & Engineering',
@@ -208,6 +241,7 @@ const defaultUsers: User[] = [
     id: 'student_sarah',
     name: 'Sarah Chen',
     email: 'sarah@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sarah',
     role: 'student',
     department: 'Computer Science & Engineering',
@@ -222,6 +256,7 @@ const defaultUsers: User[] = [
     id: 'student_marcus',
     name: 'Marcus Vance',
     email: 'marcus@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Marcus',
     role: 'student',
     department: 'Information Systems',
@@ -236,6 +271,7 @@ const defaultUsers: User[] = [
     id: 'student_elena',
     name: 'Elena Rostova',
     email: 'elena@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Elena',
     role: 'student',
     department: 'Software Engineering',
@@ -250,6 +286,7 @@ const defaultUsers: User[] = [
     id: 'faculty_evelyn',
     name: 'Dr. Evelyn Sterling',
     email: 'evelyn@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Evelyn',
     role: 'faculty',
     department: 'Computer Science & Engineering',
@@ -261,6 +298,7 @@ const defaultUsers: User[] = [
     id: 'admin_sys',
     name: 'Admin System',
     email: 'admin@teamforge.edu',
+    passwordHash: '0ead2060b65992dca4769af601a1b3a35ef38cfad2c2c465bb160ea764157c5d', // demo1234
     avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=System',
     role: 'admin',
     department: 'Administration',
@@ -483,10 +521,24 @@ const defaultNotifications: Notification[] = [
 ];
 
 class DatabaseService {
-  private getStorage<T>(key: string, defaultValue: T): T {
+  private getStorage<T>(key: string, defaultValue: T, schema?: ZodType<T>): T {
     if (typeof window === 'undefined') return defaultValue;
     const item = localStorage.getItem(`teamforge_${key}`);
-    return item ? JSON.parse(item) : defaultValue;
+    if (!item) return defaultValue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(item);
+    } catch {
+      console.warn(`[TeamForge] Corrupted JSON in localStorage for "${key}", falling back to defaults.`);
+      return defaultValue;
+    }
+    if (!schema) return parsed as T;
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      console.warn(`[TeamForge] Stored data for "${key}" failed validation, falling back to defaults.`, result.error);
+      return defaultValue;
+    }
+    return result.data;
   }
 
   private setStorage<T>(key: string, val: T): void {
@@ -497,7 +549,7 @@ class DatabaseService {
 
   // Reactive Data getters using svelte store pattern or local fields
   getDepartments(): Department[] {
-    return this.getStorage('departments', defaultDepartments);
+    return this.getStorage('departments', defaultDepartments, z.array(DepartmentSchema));
   }
 
   saveDepartments(deps: Department[]): void {
@@ -505,7 +557,7 @@ class DatabaseService {
   }
 
   getUsers(): User[] {
-    return this.getStorage('users', defaultUsers);
+    return this.getStorage('users', defaultUsers, z.array(UserSchema));
   }
 
   saveUsers(users: User[]): void {
@@ -513,7 +565,7 @@ class DatabaseService {
   }
 
   getProjects(): Project[] {
-    return this.getStorage('projects', defaultProjects);
+    return this.getStorage('projects', defaultProjects, z.array(ProjectSchema));
   }
 
   saveProjects(projects: Project[]): void {
@@ -521,7 +573,7 @@ class DatabaseService {
   }
 
   getTasks(): Task[] {
-    return this.getStorage('tasks', defaultTasks);
+    return this.getStorage('tasks', defaultTasks, z.array(TaskSchema));
   }
 
   saveTasks(tasks: Task[]): void {
@@ -529,7 +581,7 @@ class DatabaseService {
   }
 
   getThreads(): Thread[] {
-    return this.getStorage('threads', defaultThreads);
+    return this.getStorage('threads', defaultThreads, z.array(ThreadSchema));
   }
 
   saveThreads(threads: Thread[]): void {
@@ -537,7 +589,7 @@ class DatabaseService {
   }
 
   getFiles(): ProjectFile[] {
-    return this.getStorage('files', defaultFiles);
+    return this.getStorage('files', defaultFiles, z.array(ProjectFileSchema));
   }
 
   saveFiles(files: ProjectFile[]): void {
@@ -545,7 +597,7 @@ class DatabaseService {
   }
 
   getProjectIdeas(): ProjectIdea[] {
-    return this.getStorage('project_ideas', defaultProjectIdeas);
+    return this.getStorage('project_ideas', defaultProjectIdeas, z.array(ProjectIdeaSchema));
   }
 
   saveProjectIdeas(ideas: ProjectIdea[]): void {
@@ -553,12 +605,12 @@ class DatabaseService {
   }
 
   getNotifications(userId: string): Notification[] {
-    const notifs = this.getStorage('notifications', defaultNotifications);
+    const notifs = this.getStorage('notifications', defaultNotifications, z.array(NotificationSchema));
     return notifs.filter(n => n.userId === userId);
   }
 
   saveNotifications(notifs: Notification[]): void {
-    const all = this.getStorage('notifications', defaultNotifications);
+    const all = this.getStorage('notifications', defaultNotifications, z.array(NotificationSchema));
     // Merge or replace
     const otherNotifs = all.filter(n => !notifs.some(x => x.id === n.id));
     this.setStorage('notifications', [...otherNotifs, ...notifs]);
@@ -674,7 +726,7 @@ class DatabaseService {
         this.saveProjects(projects);
         
         // Add notification
-        const notifs = this.getStorage('notifications', defaultNotifications);
+        const notifs = this.getStorage('notifications', defaultNotifications, z.array(NotificationSchema));
         notifs.push({
           id: `notif_${Date.now()}`,
           userId: user.id,
@@ -738,7 +790,7 @@ class DatabaseService {
     this.saveTasks(tasks);
     
     // Notify assignees
-    const notifs = this.getStorage('notifications', defaultNotifications);
+    const notifs = this.getStorage('notifications', defaultNotifications, z.array(NotificationSchema));
     assignees.forEach(uid => {
       notifs.push({
         id: `notif_${Date.now()}_${uid}`,
@@ -845,7 +897,7 @@ class DatabaseService {
   }
 
   getWeeklyReports(projectId?: string): WeeklyReport[] {
-    const reports = this.getStorage<WeeklyReport[]>('weekly_reports', []);
+    const reports = this.getStorage('weekly_reports', [] as WeeklyReport[], z.array(WeeklyReportSchema));
     return projectId ? reports.filter(r => r.projectId === projectId) : reports;
   }
 
@@ -885,7 +937,7 @@ class DatabaseService {
   }
 
   getFeedback(projectId?: string): CategorizedFeedback[] {
-    const feedbackList = this.getStorage<CategorizedFeedback[]>('categorized_feedback', []);
+    const feedbackList = this.getStorage('categorized_feedback', [] as CategorizedFeedback[], z.array(CategorizedFeedbackSchema));
     return projectId ? feedbackList.filter(f => f.projectId === projectId) : feedbackList;
   }
 
@@ -909,7 +961,7 @@ class DatabaseService {
   }
 
   getMeetings(projectId?: string): Meeting[] {
-    const meetings = this.getStorage<Meeting[]>('meetings', []);
+    const meetings = this.getStorage('meetings', [] as Meeting[], z.array(MeetingSchema));
     return projectId ? meetings.filter(m => m.projectId === projectId) : meetings;
   }
 
@@ -947,7 +999,7 @@ class DatabaseService {
   }
 
   getAnnouncements(projectId?: string): Announcement[] {
-    const announcements = this.getStorage<Announcement[]>('announcements', []);
+    const announcements = this.getStorage('announcements', [] as Announcement[], z.array(AnnouncementSchema));
     if (!projectId) return announcements;
     return announcements.filter(a => a.targetType === 'all' || a.targetIds.includes(projectId));
   }
@@ -973,7 +1025,7 @@ class DatabaseService {
   }
 
   getFacultyNotes(projectId?: string): FacultyNote[] {
-    const notes = this.getStorage<FacultyNote[]>('faculty_notes', []);
+    const notes = this.getStorage('faculty_notes', [] as FacultyNote[], z.array(FacultyNoteSchema));
     return projectId ? notes.filter(n => n.projectId === projectId) : notes;
   }
 
@@ -1001,6 +1053,78 @@ class DatabaseService {
       this.saveFacultyNotes(notes);
       return newNote;
     }
+  }
+
+  // Faculty activity log
+  getAuditLog(actorId?: string): AuditLogEntry[] {
+    const log = this.getStorage('audit_log', [] as AuditLogEntry[], z.array(AuditLogEntrySchema));
+    return actorId ? log.filter((e) => e.actorId === actorId) : log;
+  }
+
+  saveAuditLog(log: AuditLogEntry[]): void {
+    this.setStorage('audit_log', log);
+  }
+
+  logAudit(
+    actorId: string,
+    actorName: string,
+    action: string,
+    targetType: AuditLogEntry['targetType'],
+    targetId?: string,
+    targetLabel?: string
+  ): AuditLogEntry {
+    const log = this.getAuditLog();
+    const entry: AuditLogEntry = {
+      id: `audit_${Date.now()}`,
+      actorId,
+      actorName,
+      action,
+      targetType,
+      targetId,
+      targetLabel,
+      createdAt: new Date().toISOString()
+    };
+    log.push(entry);
+    this.saveAuditLog(log);
+    return entry;
+  }
+
+  // Local-storage-wide maintenance (no backend to reset/back up against, so these
+  // operate directly on the browser's storage instead).
+  private allStorageKeys(): string[] {
+    if (typeof window === 'undefined') return [];
+    return Object.keys(localStorage).filter(k => k.startsWith('teamforge_') && k !== 'teamforge_current_user');
+  }
+
+  /** Wipes all locally stored app data so it re-seeds from the built-in demo defaults. */
+  resetAllData(): void {
+    if (typeof window === 'undefined') return;
+    this.allStorageKeys().forEach(k => localStorage.removeItem(k));
+    localStorage.removeItem('teamforge_current_user');
+  }
+
+  /** Snapshots every `teamforge_*` key currently in localStorage as a plain object. */
+  exportAllData(): Record<string, unknown> {
+    if (typeof window === 'undefined') return {};
+    const data: Record<string, unknown> = {};
+    this.allStorageKeys().forEach(k => {
+      try {
+        data[k] = JSON.parse(localStorage.getItem(k) as string);
+      } catch {
+        // skip unreadable entries
+      }
+    });
+    return data;
+  }
+
+  /** Restores a previously exported snapshot, overwriting matching localStorage keys. */
+  importAllData(data: Record<string, unknown>): void {
+    if (typeof window === 'undefined') return;
+    Object.entries(data).forEach(([k, v]) => {
+      if (k.startsWith('teamforge_') && k !== 'teamforge_current_user') {
+        localStorage.setItem(k, JSON.stringify(v));
+      }
+    });
   }
 }
 

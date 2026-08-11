@@ -18,9 +18,18 @@
   // Search & Filters
   let searchQuery = $state('');
   let selectedDomain = $state('All');
+  let selectedSkills = $state<string[]>([]);
 
   // Data list states
   let projectIdeas = $state<ProjectIdea[]>([]);
+
+  const allSkills = $derived([...new Set(projectIdeas.flatMap((i) => i.requiredSkills))].sort());
+
+  function toggleSkillFilter(skill: string) {
+    selectedSkills = selectedSkills.includes(skill)
+      ? selectedSkills.filter((s) => s !== skill)
+      : [...selectedSkills, skill];
+  }
 
   // Dialog management
   let createDialogOpen = $state(false);
@@ -206,8 +215,9 @@
                             idea.techStack.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesDomain = selectedDomain === 'All' || idea.domain === selectedDomain;
+      const matchesSkills = selectedSkills.length === 0 || selectedSkills.some((s) => idea.requiredSkills.includes(s));
 
-      return matchesSearch && matchesDomain;
+      return matchesSearch && matchesDomain && matchesSkills;
     })
   );
 
@@ -223,8 +233,9 @@
                             idea.techStack.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
 
       const matchesDomain = selectedDomain === 'All' || idea.domain === selectedDomain;
+      const matchesSkills = selectedSkills.length === 0 || selectedSkills.some((s) => idea.requiredSkills.includes(s));
 
-      return matchesSearch && matchesDomain;
+      return matchesSearch && matchesDomain && matchesSkills;
     })
   );
 
@@ -314,6 +325,34 @@
         </div>
       </div>
     </div>
+
+    {#if allSkills.length > 0}
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest mr-1">Filter by skill:</span>
+        {#each allSkills as skill}
+          <button
+            type="button"
+            onclick={() => toggleSkillFilter(skill)}
+            class="px-2.5 py-1 rounded-full text-2xs font-semibold border transition-colors cursor-pointer
+              {selectedSkills.includes(skill)
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-transparent text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'}"
+          >
+            {skill}
+          </button>
+        {/each}
+        {#if selectedSkills.length > 0}
+          <button
+            type="button"
+            onclick={() => selectedSkills = []}
+            class="px-2.5 py-1 rounded-full text-2xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer flex items-center gap-1"
+          >
+            <X class="w-3 h-3" />
+            Clear ({selectedSkills.length})
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Ideas Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="ideas-grid-list">
@@ -554,16 +593,16 @@
         </div>
 
         <!-- Visibility Selection -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label class="text-xs font-semibold text-foreground">Project Visibility</label>
+        <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
+          <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
           <div class="flex gap-4 mt-1">
             <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input 
-                type="radio" 
-                name="visibility" 
-                value="public" 
-                bind:group={visibility} 
-                class="accent-primary" 
+              <input
+                type="radio"
+                name="visibility"
+                value="public"
+                bind:group={visibility}
+                class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
                 <Eye class="w-4 h-4 text-emerald-500" />
@@ -571,12 +610,12 @@
               </span>
             </label>
             <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input 
-                type="radio" 
-                name="visibility" 
-                value="private" 
-                bind:group={visibility} 
-                class="accent-primary" 
+              <input
+                type="radio"
+                name="visibility"
+                value="private"
+                bind:group={visibility}
+                class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
                 <EyeOff class="w-4 h-4 text-muted-foreground" />
@@ -584,7 +623,7 @@
               </span>
             </label>
           </div>
-        </div>
+        </fieldset>
 
       </div>
 
@@ -699,16 +738,16 @@
         </div>
 
         <!-- Visibility Selection -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label class="text-xs font-semibold text-foreground">Project Visibility</label>
+        <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
+          <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
           <div class="flex gap-4 mt-1">
             <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input 
-                type="radio" 
-                name="edit-visibility" 
-                value="public" 
-                bind:group={visibility} 
-                class="accent-primary" 
+              <input
+                type="radio"
+                name="edit-visibility"
+                value="public"
+                bind:group={visibility}
+                class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
                 <Eye class="w-4 h-4 text-emerald-500" />
@@ -716,12 +755,12 @@
               </span>
             </label>
             <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input 
-                type="radio" 
-                name="edit-visibility" 
-                value="private" 
-                bind:group={visibility} 
-                class="accent-primary" 
+              <input
+                type="radio"
+                name="edit-visibility"
+                value="private"
+                bind:group={visibility}
+                class="accent-primary"
               />
               <span class="flex items-center gap-1 font-medium">
                 <EyeOff class="w-4 h-4 text-muted-foreground" />
@@ -729,7 +768,7 @@
               </span>
             </label>
           </div>
-        </div>
+        </fieldset>
 
       </div>
 

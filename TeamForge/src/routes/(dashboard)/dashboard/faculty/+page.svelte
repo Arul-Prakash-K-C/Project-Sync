@@ -28,6 +28,7 @@
   }
 
   let pendingProjects = $derived(projects.filter(p => p.status === 'pending'));
+  let departmentReports = $derived(weeklyReports.filter(rep => projects.some(p => p.id === rep.projectId)));
   let activeProjects = $derived(projects.filter(p => p.status === 'active'));
   let totalStudents = $derived(activeProjects.reduce((sum, p) => sum + p.members.length, 0));
   let overdueMilestones = $derived(
@@ -140,20 +141,18 @@
         <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Recent Submissions Activity</h3>
         
         <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-1">
-          {#each weeklyReports.slice().reverse() as rep}
+          {#each departmentReports.slice().reverse() as rep}
             {@const proj = projects.find(pr => pr.id === rep.projectId)}
-            {#if proj}
-              <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
-                  <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
-                    {rep.status}
-                  </Badge>
-                </div>
-                <p class="text-3xs text-muted-foreground truncate">Project: {proj.name}</p>
-                <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+            <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
+                <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
+                  {rep.status}
+                </Badge>
               </div>
-            {/if}
+              <p class="text-3xs text-muted-foreground truncate">Project: {proj?.name}</p>
+              <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+            </div>
           {:else}
             <div class="py-8 text-center text-xs text-muted-foreground italic">No recent submission activities found.</div>
           {/each}

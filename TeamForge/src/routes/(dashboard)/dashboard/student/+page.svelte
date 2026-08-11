@@ -65,16 +65,24 @@
 
   function acceptInvitation(projId: string) {
     if (!auth.user) return;
-    db.acceptInvite(projId, auth.user.id);
-    toast.success('Invitation accepted!');
-    loadData();
+    try {
+      db.acceptInvite(projId, auth.user.id);
+      toast.success('Invitation accepted!');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to accept invitation');
+    }
   }
 
   function declineInvitation(projId: string) {
     if (!auth.user) return;
-    db.declineInvite(projId, auth.user.id);
-    toast.success('Invitation declined');
-    loadData();
+    try {
+      db.declineInvite(projId, auth.user.id);
+      toast.success('Invitation declined');
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to decline invitation');
+    }
   }
 
   // Derived stats

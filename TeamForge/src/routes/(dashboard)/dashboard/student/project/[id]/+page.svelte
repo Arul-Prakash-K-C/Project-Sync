@@ -14,8 +14,9 @@
     type Meeting
   } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { 
-    FolderKanban, 
+  import { storeFileBlob, getFileBlob, formatBytes, inferFileCategory } from '$lib/services/fileStorage';
+  import {
+    FolderKanban,
     ChevronRight,
     UserPlus, 
     Plus, 
@@ -80,9 +81,9 @@
   let replyText = $state('');
 
   let fileDialogOpen = $state(false);
-  let uploadFileName = $state('');
-  let uploadFileSize = $state('1.5 MB');
-  let uploadFileType = $state('pdf');
+  let selectedFile = $state<File | null>(null);
+  let uploading = $state(false);
+  const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB — plenty for a browser-local demo store
 
   // Weekly Report Forms
   let reportWeekNumber = $state(1);
@@ -138,25 +139,33 @@
 
   function toggleMilestone(mId: string) {
     if (!project) return;
-    const updated = project.milestones.map(m => m.id === mId ? { ...m, completed: !m.completed } : m);
-    db.updateProject(project.id, { milestones: updated });
-    toast.success('Milestone updated');
+    try {
+      const updated = project.milestones.map(m => m.id === mId ? { ...m, completed: !m.completed } : m);
+      db.updateProject(project.id, { milestones: updated });
+      toast.success('Milestone updated');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update milestone');
+    }
   }
 
   function addMilestone(e: SubmitEvent) {
     e.preventDefault();
     if (!project || !milestoneTitle) return;
-    const newM: Milestone = {
-      id: `m_${Date.now()}`,
-      title: milestoneTitle,
-      deadline: milestoneDeadline || new Date().toISOString().split('T')[0],
-      completed: false
-    };
-    db.updateProject(project.id, { milestones: [...project.milestones, newM] });
-    toast.success('Milestone added!');
-    milestoneTitle = '';
-    milestoneDeadline = '';
-    showMilestoneForm = false;
+    try {
+      const newM: Milestone = {
+        id: `m_${Date.now()}`,
+        title: milestoneTitle,
+        deadline: milestoneDeadline || new Date().toISOString().split('T')[0],
+        completed: false
+      };
+      db.updateProject(project.id, { milestones: [...project.milestones, newM] });
+      toast.success('Milestone added!');
+      milestoneTitle = '';
+      milestoneDeadline = '';
+      showMilestoneForm = false;
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add milestone');
+    }
   }
 
   function handleInvite(e: SubmitEvent) {
@@ -249,18 +258,46 @@
     }
   }
 
-  function handleUploadFile(e: SubmitEvent) {
+  async function handleUploadFile(e: SubmitEvent) {
     e.preventDefault();
-    if (!project || !auth.user) return;
+    if (!project || !auth.user || !selectedFile) return;
+    if (selectedFile.size > MAX_FILE_BYTES) {
+      toast.error(`File is too large (max ${formatBytes(MAX_FILE_BYTES)}).`);
+      return;
+    }
+    uploading = true;
     try {
-      db.uploadFile(project.id, uploadFileName, uploadFileSize, uploadFileType, auth.user);
-      toast.success(`Mock file "${uploadFileName}" uploaded successfully`);
-      uploadFileName = '';
+      const newFile = db.uploadFile(
+        project.id,
+        selectedFile.name,
+        formatBytes(selectedFile.size),
+        inferFileCategory(selectedFile),
+        auth.user
+      );
+      await storeFileBlob(newFile.id, selectedFile);
+      toast.success(`"${selectedFile.name}" uploaded successfully`);
+      selectedFile = null;
       fileDialogOpen = false;
       loadData();
     } catch (err) {
       toast.error('Failed to upload file');
+    } finally {
+      uploading = false;
     }
+  }
+
+  async function downloadFile(f: ProjectFile) {
+    const blob = await getFileBlob(f.id);
+    if (!blob) {
+      toast.warning('No stored content for this file (seeded demo record).');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = f.name;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 </script>
 
@@ -450,6 +487,10 @@
                       </div>
                     </div>
                   </div>
+                {:else}
+                  <div class="py-8 text-center text-[10px] text-muted-foreground/60 italic border border-dashed rounded-xl">
+                    No tasks here yet
+                  </div>
                 {/each}
               </div>
             </div>
@@ -550,6 +591,8 @@
                     </div>
                     <p class="text-xs text-muted-foreground">{rep.content}</p>
                   </div>
+                {:else}
+                  <p class="text-2xs text-muted-foreground/60 italic py-2">No replies yet — be the first to respond.</p>
                 {/each}
               </div>
 
@@ -580,7 +623,7 @@
           <h3 class="text-lg font-bold text-foreground">File Library</h3>
           <Button variant="outline" size="sm" onclick={() => fileDialogOpen = true}>
             <FolderPlus class="w-4 h-4" />
-            Upload Mock File
+            Upload File
           </Button>
         </div>
 
@@ -601,9 +644,7 @@
 
               <div class="mt-4 pt-3 border-t border-border flex items-center justify-between text-3xs text-muted-foreground">
                 <span>Uploaded by: {f.uploadedByName}</span>
-                <a href="#download" onclick={(e) => (e.preventDefault(), toast.success(`Downloaded: ${f.name} (Simulated)`))}>
-                  <Button variant="ghost" size="sm" class="text-3xs h-7 px-2 font-semibold">Download</Button>
-                </a>
+                <Button variant="ghost" size="sm" class="text-3xs h-7 px-2 font-semibold" onclick={() => downloadFile(f)}>Download</Button>
               </div>
             </Card>
           {:else}
@@ -996,6 +1037,8 @@
                   <p class="text-[11px] text-muted-foreground mt-0.5">{comment.text}</p>
                 </div>
               </div>
+            {:else}
+              <p class="text-[11px] text-muted-foreground/60 italic py-1">No comments yet.</p>
             {/each}
           </div>
 
@@ -1019,47 +1062,25 @@
   <Dialog bind:open={fileDialogOpen} title="Upload Project File">
     <form onsubmit={handleUploadFile} class="flex flex-col gap-4">
       <div class="flex flex-col gap-1.5">
-        <label for="fl-name" class="text-xs font-semibold text-foreground">File Name</label>
-        <input 
-          id="fl-name"
-          type="text" 
-          placeholder="e.g. Design_Blueprint.pdf" 
-          bind:value={uploadFileName} 
+        <label for="fl-file" class="text-xs font-semibold text-foreground">Choose File</label>
+        <input
+          id="fl-file"
+          type="file"
           required
-          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none"
+          onchange={(e) => (selectedFile = (e.target as HTMLInputElement).files?.[0] ?? null)}
+          class="w-full text-sm text-foreground file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer cursor-pointer"
         />
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label for="fl-type" class="text-xs font-semibold text-foreground">File Type</label>
-          <select 
-            id="fl-type"
-            bind:value={uploadFileType}
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-          >
-            <option value="pdf">PDF Spec</option>
-            <option value="image">PNG/JPG Image</option>
-            <option value="doc">Word/Slides</option>
-            <option value="code">Source Code</option>
-          </select>
-        </div>
-
-        <div class="flex flex-col gap-1.5">
-          <label for="fl-size" class="text-xs font-semibold text-foreground">Simulated Size</label>
-          <input 
-            id="fl-size"
-            type="text" 
-            placeholder="e.g. 2.4 MB" 
-            bind:value={uploadFileSize} 
-            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground"
-          />
-        </div>
+        {#if selectedFile}
+          <p class="text-2xs text-muted-foreground mt-1">{selectedFile.name} — {formatBytes(selectedFile.size)}</p>
+        {/if}
+        <p class="text-2xs text-muted-foreground/70">Stored locally in this browser (max {formatBytes(MAX_FILE_BYTES)}).</p>
       </div>
 
       <div class="flex justify-end gap-2 mt-2">
-        <Button type="button" variant="outline" onclick={() => fileDialogOpen = false}>Cancel</Button>
-        <Button type="submit" variant="primary">Add File</Button>
+        <Button type="button" variant="outline" onclick={() => { fileDialogOpen = false; selectedFile = null; }}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={!selectedFile || uploading}>
+          {uploading ? 'Uploading...' : 'Upload File'}
+        </Button>
       </div>
     </form>
   </Dialog>
