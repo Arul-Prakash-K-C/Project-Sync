@@ -22,6 +22,8 @@
 
   // Data list states
   let projectIdeas = $state<ProjectIdea[]>([]);
+  let studentsList = $state<User[]>([]);
+  let facultyList = $state<User[]>([]);
 
   const allSkills = $derived([...new Set(projectIdeas.flatMap((i) => i.requiredSkills))].sort());
 
@@ -35,6 +37,7 @@
   let createDialogOpen = $state(false);
   let editDialogOpen = $state(false);
   let deleteDialogOpen = $state(false);
+  let adviceDialogOpen = $state(false);
 
   // Form states
   let title = $state('');
@@ -44,6 +47,36 @@
   let visibility = $state<'public' | 'private'>('public');
   let skillsInput = $state('');
   let techInput = $state('');
+  let invitedTeammates = $state<string[]>([]);
+  let advisingFaculty = $state<string>('');
+
+  $effect(() => {
+    if (invitedTeammates.length > teamSizeRequirement) {
+      invitedTeammates = invitedTeammates.slice(0, teamSizeRequirement);
+    }
+  });
+
+  // Search states for teammate and faculty selections
+  let teammateSearchQuery = $state('');
+  let facultySearchQuery = $state('');
+
+  const filteredStudents = $derived(
+    studentsList.filter(student => 
+      student.name.toLowerCase().includes(teammateSearchQuery.toLowerCase()) ||
+      student.department.toLowerCase().includes(teammateSearchQuery.toLowerCase())
+    )
+  );
+
+  const filteredFaculty = $derived(
+    facultyList.filter(faculty => 
+      faculty.name.toLowerCase().includes(facultySearchQuery.toLowerCase()) ||
+      faculty.department.toLowerCase().includes(facultySearchQuery.toLowerCase())
+    )
+  );
+
+  // Advice dialog states
+  let adviceList = $state<any[]>([]);
+  let adviceIdeaTitle = $state('');
 
   // Editing and Deleting Targets
   let activeIdea = $state<ProjectIdea | null>(null);
@@ -66,6 +99,10 @@
 
   function loadData() {
     projectIdeas = db.getProjectIdeas();
+    if (auth.user) {
+      studentsList = db.getUsers().filter(u => u.role === 'student' && u.id !== auth.user!.id);
+      facultyList = db.getUsers().filter(u => u.role === 'faculty');
+    }
   }
 
   // Parses comma-separated values into clean arrays
@@ -86,6 +123,10 @@
     visibility = idea.visibility;
     skillsInput = idea.requiredSkills.join(', ');
     techInput = idea.techStack.join(', ');
+    invitedTeammates = idea.invitedTeammates || [];
+    advisingFaculty = idea.advisingFaculty || '';
+    teammateSearchQuery = '';
+    facultySearchQuery = '';
     editDialogOpen = true;
   }
 
@@ -97,7 +138,17 @@
     visibility = 'public';
     skillsInput = '';
     techInput = '';
+    invitedTeammates = [];
+    advisingFaculty = '';
+    teammateSearchQuery = '';
+    facultySearchQuery = '';
     createDialogOpen = true;
+  }
+
+  function openAdviceModal(idea: ProjectIdea) {
+    adviceList = idea.advice || [];
+    adviceIdeaTitle = idea.title;
+    adviceDialogOpen = true;
   }
 
   function handleCreate(e: SubmitEvent) {
@@ -116,7 +167,9 @@
         parsedTech,
         domain,
         visibility,
-        auth.user
+        auth.user,
+        invitedTeammates,
+        advisingFaculty
       );
 
       toast.success(`Project Idea "${title}" created successfully!`);
@@ -142,7 +195,9 @@
         teamSizeRequirement,
         visibility,
         requiredSkills: parsedSkills,
-        techStack: parsedTech
+        techStack: parsedTech,
+        invitedTeammates,
+        advisingFaculty
       });
 
       toast.success(`Project Idea "${title}" updated successfully!`);
@@ -431,6 +486,45 @@
             </div>
           </div>
 
+          <!-- Invited Teammates and Advising Faculty -->
+          <div class="mt-4 pt-3 border-t border-border/40 flex flex-col gap-2">
+            <div class="flex items-center justify-between text-3xs font-extrabold text-muted-foreground uppercase">
+              <span>Invited Teammates</span>
+              <span>Advising Faculty</span>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex -space-x-1.5 overflow-hidden">
+                {#each idea.invitedTeammates || [] as teammateId}
+                  {@const member = db.getUser(teammateId)}
+                  {#if member}
+                    <img 
+                      src={member.avatar} 
+                      alt={member.name} 
+                      title={`${member.name} (${member.department})`} 
+                      class="inline-block h-6 w-6 rounded-full ring-2 ring-card bg-muted cursor-help"
+                    />
+                  {/if}
+                {:else}
+                  <span class="text-2xs text-muted-foreground/60 italic font-medium">None invited</span>
+                {/each}
+              </div>
+
+              <div class="flex flex-wrap gap-1 justify-end max-w-[60%]">
+                {#if idea.advisingFaculty}
+                  {@const fac = db.getUser(idea.advisingFaculty)}
+                  {#if fac}
+                    <Badge variant="outline" class="text-3xs px-1.5 py-0.5 border-border text-foreground bg-secondary/30 flex items-center gap-1 font-medium">
+                      <img src={fac.avatar} alt={fac.name} class="w-3.5 h-3.5 rounded-full bg-muted shrink-0" />
+                      <span class="truncate max-w-20" title={fac.name}>{fac.name.split(' ').pop()}</span>
+                    </Badge>
+                  {/if}
+                {:else}
+                  <span class="text-2xs text-muted-foreground/60 italic font-medium">None requested</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+
           <!-- Card Footer Action Panel -->
           <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
             <div class="flex items-center gap-1.5">
@@ -453,6 +547,17 @@
             </div>
 
             <div class="flex items-center gap-2">
+              {#if idea.advice && idea.advice.length > 0}
+                <button 
+                  onclick={() => openAdviceModal(idea)}
+                  class="p-2 border border-amber-500/25 bg-amber-500/5 text-amber-500 hover:bg-amber-500 hover:text-white rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  title="View Faculty Advice"
+                  id="btn-view-advice-{idea.id}"
+                >
+                  <BookOpen class="w-3.5 h-3.5" />
+                  <span class="text-3xs font-extrabold">{idea.advice.length}</span>
+                </button>
+              {/if}
               {#if activeTab === 'my-ideas'}
                 <button 
                   onclick={() => openEditModal(idea)}
@@ -592,6 +697,94 @@
           {/if}
         </div>
 
+        <!-- Invite Teammates (Select Students) -->
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-foreground">Invite Teammates</label>
+            <input 
+              type="text" 
+              placeholder="Search students..." 
+              bind:value={teammateSearchQuery}
+              class="px-2 py-1 rounded-lg border border-border bg-background text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 max-w-40"
+            />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto border border-border/60 p-2.5 rounded-xl bg-secondary/15">
+            {#each filteredStudents as student}
+              <label class="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-secondary/40 cursor-pointer border border-transparent hover:border-border/30 transition-all select-none">
+                <input 
+                  type="checkbox" 
+                  value={student.id} 
+                  checked={invitedTeammates.includes(student.id)} 
+                  disabled={!invitedTeammates.includes(student.id) && invitedTeammates.length >= teamSizeRequirement}
+                  onchange={(e) => {
+                    if (e.currentTarget.checked) {
+                      invitedTeammates = [...invitedTeammates, student.id];
+                    } else {
+                      invitedTeammates = invitedTeammates.filter(id => id !== student.id);
+                    }
+                  }}
+                  class="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 accent-primary" 
+                />
+                <img src={student.avatar} alt={student.name} class="w-7 h-7 rounded-full bg-muted border border-border" />
+                <div class="flex flex-col min-w-0">
+                  <span class="text-xs font-bold text-foreground truncate">{student.name}</span>
+                  <span class="text-[9px] text-muted-foreground truncate">{student.department} • {student.academicYear || ''}</span>
+                </div>
+              </label>
+            {:else}
+              <span class="text-2xs text-muted-foreground p-2">No other students found</span>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Request Advice From (Select Faculty) -->
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-foreground">Request Advice from Faculty (Single Selection)</label>
+            <input 
+              type="text" 
+              placeholder="Search faculty..." 
+              bind:value={facultySearchQuery}
+              class="px-2 py-1 rounded-lg border border-border bg-background text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 max-w-40"
+            />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto border border-border/60 p-2.5 rounded-xl bg-secondary/15">
+            {#each filteredFaculty as faculty}
+              <label class="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-secondary/40 cursor-pointer border border-transparent hover:border-border/30 transition-all select-none">
+                <input 
+                  type="radio" 
+                  name="create-advising-faculty"
+                  value={faculty.id} 
+                  checked={advisingFaculty === faculty.id} 
+                  onchange={() => {
+                    advisingFaculty = faculty.id;
+                  }}
+                  class="w-4 h-4 rounded-full border-border text-primary focus:ring-primary/20 accent-primary" 
+                />
+                <img src={faculty.avatar} alt={faculty.name} class="w-7 h-7 rounded-full bg-muted border border-border" />
+                <div class="flex flex-col min-w-0">
+                  <span class="text-xs font-bold text-foreground truncate">{faculty.name}</span>
+                  <span class="text-[9px] text-muted-foreground truncate">{faculty.department}</span>
+                </div>
+              </label>
+            {:else}
+              <span class="text-2xs text-muted-foreground p-2">No faculty members found</span>
+            {/each}
+          </div>
+          {#if advisingFaculty}
+            <div class="flex items-center justify-between mt-1 text-[11px] text-muted-foreground bg-primary/5 border border-primary/10 rounded-lg p-2">
+              <span class="truncate">Selected Advisor: <strong>{db.getUser(advisingFaculty)?.name || ''}</strong></span>
+              <button 
+                type="button" 
+                onclick={() => advisingFaculty = ''}
+                class="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          {/if}
+        </div>
+
         <!-- Visibility Selection -->
         <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
           <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
@@ -628,9 +821,9 @@
       </div>
 
       <!-- Info Alert -->
-      <div class="p-3 bg-primary/5 border border-primary/20 text-primary dark:text-primary-foreground/90 rounded-xl flex gap-2.5 text-xs mt-2">
+      <div class="p-3 bg-primary/5 border border-primary/20 text-zinc-950 dark:text-zinc-50 rounded-xl flex gap-2.5 text-xs mt-2">
         <Info class="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Publishing public ideas lets other students search for them and express interest in joining your team.</span>
+        <span class="text-zinc-950 dark:text-zinc-50">Publishing public ideas lets other students search for them and express interest in joining your team.</span>
       </div>
 
       <div class="flex justify-end gap-2 mt-2">
@@ -737,6 +930,94 @@
           {/if}
         </div>
 
+        <!-- Invite Teammates (Select Students) -->
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-foreground">Invite Teammates</label>
+            <input 
+              type="text" 
+              placeholder="Search students..." 
+              bind:value={teammateSearchQuery}
+              class="px-2 py-1 rounded-lg border border-border bg-background text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 max-w-40"
+            />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto border border-border/60 p-2.5 rounded-xl bg-secondary/15">
+            {#each filteredStudents as student}
+              <label class="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-secondary/40 cursor-pointer border border-transparent hover:border-border/30 transition-all select-none">
+                <input 
+                  type="checkbox" 
+                  value={student.id} 
+                  checked={invitedTeammates.includes(student.id)} 
+                  disabled={!invitedTeammates.includes(student.id) && invitedTeammates.length >= teamSizeRequirement}
+                  onchange={(e) => {
+                    if (e.currentTarget.checked) {
+                      invitedTeammates = [...invitedTeammates, student.id];
+                    } else {
+                      invitedTeammates = invitedTeammates.filter(id => id !== student.id);
+                    }
+                  }}
+                  class="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 accent-primary" 
+                />
+                <img src={student.avatar} alt={student.name} class="w-7 h-7 rounded-full bg-muted border border-border" />
+                <div class="flex flex-col min-w-0">
+                  <span class="text-xs font-bold text-foreground truncate">{student.name}</span>
+                  <span class="text-[9px] text-muted-foreground truncate">{student.department} • {student.academicYear || ''}</span>
+                </div>
+              </label>
+            {:else}
+              <span class="text-2xs text-muted-foreground p-2">No other students found</span>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Request Advice From (Select Faculty) -->
+        <div class="flex flex-col gap-1.5 md:col-span-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-semibold text-foreground">Request Advice from Faculty (Single Selection)</label>
+            <input 
+              type="text" 
+              placeholder="Search faculty..." 
+              bind:value={facultySearchQuery}
+              class="px-2 py-1 rounded-lg border border-border bg-background text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/20 max-w-40"
+            />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto border border-border/60 p-2.5 rounded-xl bg-secondary/15">
+            {#each filteredFaculty as faculty}
+              <label class="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-secondary/40 cursor-pointer border border-transparent hover:border-border/30 transition-all select-none">
+                <input 
+                  type="radio" 
+                  name="edit-advising-faculty"
+                  value={faculty.id} 
+                  checked={advisingFaculty === faculty.id} 
+                  onchange={() => {
+                    advisingFaculty = faculty.id;
+                  }}
+                  class="w-4 h-4 rounded-full border-border text-primary focus:ring-primary/20 accent-primary" 
+                />
+                <img src={faculty.avatar} alt={faculty.name} class="w-7 h-7 rounded-full bg-muted border border-border" />
+                <div class="flex flex-col min-w-0">
+                  <span class="text-xs font-bold text-foreground truncate">{faculty.name}</span>
+                  <span class="text-[9px] text-muted-foreground truncate">{faculty.department}</span>
+                </div>
+              </label>
+            {:else}
+              <span class="text-2xs text-muted-foreground p-2">No faculty members found</span>
+            {/each}
+          </div>
+          {#if advisingFaculty}
+            <div class="flex items-center justify-between mt-1 text-[11px] text-muted-foreground bg-primary/5 border border-primary/10 rounded-lg p-2">
+              <span class="truncate">Selected Advisor: <strong>{db.getUser(advisingFaculty)?.name || ''}</strong></span>
+              <button 
+                type="button" 
+                onclick={() => advisingFaculty = ''}
+                class="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+              >
+                Clear
+              </button>
+            </div>
+          {/if}
+        </div>
+
         <!-- Visibility Selection -->
         <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
           <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
@@ -792,6 +1073,35 @@
       <div class="flex justify-end gap-2">
         <Button variant="outline" onclick={() => deleteDialogOpen = false}>Cancel</Button>
         <Button variant="danger" onclick={handleDelete}>Delete Idea</Button>
+      </div>
+    </div>
+  </Dialog>
+
+  <!-- View Advice Dialog -->
+  <Dialog bind:open={adviceDialogOpen} title="Faculty Advice: {adviceIdeaTitle}" class="max-w-md">
+    <div class="flex flex-col gap-4" id="view-advice-container">
+      {#if adviceList.length === 0}
+        <p class="text-xs text-muted-foreground text-center py-6">No advice has been received yet for this idea.</p>
+      {:else}
+        <div class="flex flex-col gap-3 max-h-96 overflow-y-auto">
+          {#each adviceList as adv}
+            <div class="p-3 bg-secondary/30 border border-border rounded-xl flex flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <img src={adv.facultyAvatar} alt={adv.facultyName} class="w-6 h-6 rounded-full border border-border bg-muted" />
+                <div class="flex flex-col">
+                  <span class="text-xs font-bold text-foreground leading-none">{adv.facultyName}</span>
+                  <span class="text-[9px] text-muted-foreground mt-0.5">{new Date(adv.createdAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <p class="text-xs text-foreground leading-relaxed italic bg-background/50 p-2.5 rounded-lg border border-border/50">
+                "{adv.feedback}"
+              </p>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <div class="flex justify-end mt-2">
+        <Button variant="outline" onclick={() => adviceDialogOpen = false}>Close</Button>
       </div>
     </div>
   </Dialog>
