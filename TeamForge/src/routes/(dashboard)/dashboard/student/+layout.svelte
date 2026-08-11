@@ -2,17 +2,19 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
   import { getDashboardRoute } from '$lib/utils/navigation';
 
+  let { children } = $props();
+
   onMount(() => {
-    if (auth.user) {
+    if (auth.user && auth.user.role !== 'student') {
+      toast.error("You don't have access to the student dashboard.");
       goto(getDashboardRoute(auth.user.role));
-    } else {
-      goto('/auth');
     }
   });
 </script>
 
-<div class="h-96 flex items-center justify-center">
-  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-</div>
+{#if auth.user?.role === 'student'}
+  {@render children()}
+{/if}

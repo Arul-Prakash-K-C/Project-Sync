@@ -120,6 +120,10 @@
               {/each}
             </div>
           </div>
+        {:else}
+          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+            No active teams in your department yet.
+          </div>
         {/each}
       </div>
     </Card>

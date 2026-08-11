@@ -33,6 +33,8 @@
       
       const p = db.getProjects().find(proj => proj.id === id);
       if (p) {
+        db.logAudit(auth.user!.id, auth.user!.name, 'Approved project proposal', 'project', p.id, p.name);
+
         // Add initial milestone
         const updated = [...p.milestones, {
           id: `m_${Date.now()}`,
@@ -68,6 +70,8 @@
       
       const p = db.getProjects().find(proj => proj.id === id);
       if (p) {
+        db.logAudit(auth.user!.id, auth.user!.name, 'Rejected project proposal', 'project', p.id, p.name);
+
         db.saveNotifications([
           {
             id: `notif_${Date.now()}`,
@@ -96,6 +100,15 @@
     e.preventDefault();
     if (!selectedProposalForComment) return;
     try {
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        'Requested revision on project proposal',
+        'project',
+        selectedProposalForComment.id,
+        selectedProposalForComment.name
+      );
+
       db.saveNotifications([
         {
           id: `notif_${Date.now()}`,

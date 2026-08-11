@@ -50,6 +50,7 @@
       if (editingMilestoneId) {
         const updated = proj.milestones.map(m => m.id === editingMilestoneId ? { ...m, title: milestoneTitle, deadline: milestoneDeadline } : m);
         db.updateProject(proj.id, { milestones: updated });
+        db.logAudit(auth.user!.id, auth.user!.name, 'Updated milestone', 'milestone', editingMilestoneId, `${milestoneTitle} (${proj.name})`);
         toast.success('Milestone updated successfully');
         editingMilestoneId = null;
       } else {
@@ -61,7 +62,8 @@
           locked: false
         };
         db.updateProject(proj.id, { milestones: [...proj.milestones, newM] });
-        
+        db.logAudit(auth.user!.id, auth.user!.name, 'Created milestone', 'milestone', newM.id, `${milestoneTitle} (${proj.name})`);
+
         proj.members.forEach(member => {
           db.saveNotifications([
             {
@@ -91,8 +93,10 @@
     const proj = projects.find(p => p.id === projId);
     if (!proj) return;
     try {
+      const deleted = proj.milestones.find(m => m.id === mId);
       const updated = proj.milestones.filter(m => m.id !== mId);
       db.updateProject(proj.id, { milestones: updated });
+      db.logAudit(auth.user!.id, auth.user!.name, 'Deleted milestone', 'milestone', mId, `${deleted?.title ?? mId} (${proj.name})`);
       toast.success('Milestone deleted');
       loadData();
     } catch (err) {
@@ -104,8 +108,18 @@
     const proj = projects.find(p => p.id === projId);
     if (!proj) return;
     try {
-      const updated = proj.milestones.map(m => m.id === mId ? { ...m, locked: !m.locked } : m);
+      const target = proj.milestones.find(m => m.id === mId);
+      const nowLocked = !target?.locked;
+      const updated = proj.milestones.map(m => m.id === mId ? { ...m, locked: nowLocked } : m);
       db.updateProject(proj.id, { milestones: updated });
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        nowLocked ? 'Locked milestone' : 'Unlocked milestone',
+        'milestone',
+        mId,
+        `${target?.title ?? mId} (${proj.name})`
+      );
       toast.success('Milestone lock state updated');
       loadData();
     } catch (err) {
@@ -123,7 +137,8 @@
       try {
         const updated = proj.milestones.map(m => m.id === mId ? { ...m, deadline: newDeadline, extendedDeadline: newDeadline } : m);
         db.updateProject(proj.id, { milestones: updated });
-        
+        db.logAudit(auth.user!.id, auth.user!.name, 'Extended milestone deadline', 'milestone', mId, `${milestone.title} (${proj.name}) → ${newDeadline}`);
+
         proj.members.forEach(member => {
           db.saveNotifications([
             {

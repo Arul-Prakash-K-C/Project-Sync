@@ -36,8 +36,16 @@
 
     try {
       const targets = announceTargetType === 'all' ? projects.map(p => p.id) : announceTargetIds;
-      db.createAnnouncement(announceTargetType, targets, announceTitle, announceContent, auth.user!.name);
-      
+      const ann = db.createAnnouncement(announceTargetType, targets, announceTitle, announceContent, auth.user!.name);
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        'Posted announcement',
+        'announcement',
+        ann.id,
+        `${announceTitle} (${announceTargetType === 'all' ? 'all teams' : `${targets.length} team(s)`})`
+      );
+
       const targetingProjects = projects.filter(p => targets.includes(p.id));
       targetingProjects.forEach(proj => {
         proj.members.forEach(member => {
@@ -102,6 +110,8 @@
                   <input type="checkbox" value={p.id} bind:group={announceTargetIds} class="cursor-pointer" />
                   {p.name}
                 </label>
+              {:else}
+                <span class="text-2xs text-muted-foreground italic">No active teams in your department yet.</span>
               {/each}
             </div>
           {/if}

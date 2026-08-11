@@ -25,6 +25,7 @@
   let buttonsRef: HTMLElement;
   let cardRefs: HTMLElement[] = $state([]);
   let canvasRef: HTMLCanvasElement;
+  let destroyCanvasAnim: (() => void) | undefined;
 
   onMount(async () => {
     // 1. GSAP animations
@@ -147,11 +148,15 @@
 
       render();
 
-      return () => {
+      destroyCanvasAnim = () => {
         window.removeEventListener('resize', initGrid);
         cancelAnimationFrame(animationFrameId);
       };
     }
+  });
+
+  onMount(() => {
+    return () => destroyCanvasAnim?.();
   });
 </script>
 
