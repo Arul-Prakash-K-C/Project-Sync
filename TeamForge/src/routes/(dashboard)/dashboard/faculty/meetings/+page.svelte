@@ -154,8 +154,9 @@
     if (!proj) return;
 
     try {
-      db.addFeedback(feedbackProjectId, feedbackCategory, feedbackText, auth.user!.name);
-      
+      const fb = db.addFeedback(feedbackProjectId, feedbackCategory, feedbackText, auth.user!.name);
+      db.logAudit(auth.user!.id, auth.user!.name, `Added ${feedbackCategory} feedback`, 'feedback', fb.id, proj.name);
+
       proj.members.forEach(member => {
         db.saveNotifications([
           {

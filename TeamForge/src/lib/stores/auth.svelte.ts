@@ -1,4 +1,5 @@
 import { db, type User } from '$lib/services/db';
+import { hashPassword, verifyPassword } from '$lib/utils/password';
 
 class AuthStore {
   user = $state<User | null>(null);
@@ -29,16 +30,24 @@ class AuthStore {
     this.loading = false;
   }
 
-  login(email: string, password?: string) {
+  async login(email: string, password: string) {
     const matched = db.getUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (matched) {
-      this.user = matched;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('teamforge_current_user', JSON.stringify(matched));
-      }
-      return matched;
+    if (!matched) {
+      throw new Error('Invalid email or password');
     }
-    throw new Error('Invalid email or password');
+    // Accounts created before password support have no hash yet — let them in once,
+    // then require a hash on every login going forward.
+    if (matched.passwordHash) {
+      const valid = await verifyPassword(password, matched.passwordHash);
+      if (!valid) {
+        throw new Error('Invalid email or password');
+      }
+    }
+    this.user = matched;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('teamforge_current_user', JSON.stringify(matched));
+    }
+    return matched;
   }
 
   logout() {
@@ -48,16 +57,20 @@ class AuthStore {
     }
   }
 
-  register(name: string, email: string, role: 'student' | 'faculty' | 'admin', department: string, academicYear?: string) {
+  async register(name: string, email: string, password: string, role: 'student' | 'faculty' | 'admin', department: string, academicYear?: string) {
     const users = db.getUsers();
     if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
       throw new Error('Email already exists');
     }
-    
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters');
+    }
+
     const newUser: User = {
       id: `user_${Date.now()}`,
       name,
       email,
+      passwordHash: await hashPassword(password),
       avatar: `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(name)}`,
       role,
       department,
@@ -68,7 +81,7 @@ class AuthStore {
       availability: true,
       previousProjects: []
     };
-    
+
     users.push(newUser);
     db.saveUsers(users);
     this.user = newUser;

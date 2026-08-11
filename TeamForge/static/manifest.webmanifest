@@ -1,0 +1,17 @@
+{
+  "name": "TeamForge",
+  "short_name": "TeamForge",
+  "description": "Intelligent project team finder and collaboration platform for academic capstone teams.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#18181b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

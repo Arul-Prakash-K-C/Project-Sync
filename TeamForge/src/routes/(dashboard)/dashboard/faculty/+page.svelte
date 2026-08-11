@@ -43,88 +43,8 @@
     }
   }
 
-  function openAdviceDialog(idea: ProjectIdea) {
-    selectedIdea = idea;
-    adviceFeedback = '';
-    adviceDialogOpen = true;
-  }
-
-  function submitAdvice(e: SubmitEvent) {
-    e.preventDefault();
-    if (!selectedIdea || !auth.user) return;
-
-    try {
-      db.addIdeaAdvice(selectedIdea.id, auth.user, adviceFeedback);
-      toast.success(`Advice submitted for "${selectedIdea.title}"!`);
-      adviceDialogOpen = false;
-      selectedIdea = null;
-      adviceFeedback = '';
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to submit advice');
-    }
-  }
-
-  function approveProject(id: string) {
-    try {
-      db.updateProject(id, { status: 'active' });
-      toast.success('Project proposal approved!');
-      
-      const p = db.getProjects().find(proj => proj.id === id);
-      if (p) {
-        // Add initial milestone
-        const updated = [...p.milestones, {
-          id: `m_${Date.now()}`,
-          title: 'System Requirements Specification',
-          deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          completed: false
-        }];
-        db.updateProject(p.id, { milestones: updated });
-
-        db.saveNotifications([
-          {
-            id: `notif_${Date.now()}`,
-            userId: p.ownerId,
-            title: 'Project Approved!',
-            description: `Your project proposal "${p.name}" has been approved by ${auth.user!.name}.`,
-            type: 'project',
-            read: false,
-            createdAt: new Date().toISOString(),
-            actionUrl: `/dashboard/student/project/${p.id}`
-          }
-        ]);
-      }
-      loadData();
-    } catch (err) {
-      toast.error('Failed to approve project');
-    }
-  }
-
-  function rejectProject(id: string) {
-    try {
-      db.updateProject(id, { status: 'rejected' });
-      toast.success('Project proposal rejected');
-      
-      const p = db.getProjects().find(proj => proj.id === id);
-      if (p) {
-        db.saveNotifications([
-          {
-            id: `notif_${Date.now()}`,
-            userId: p.ownerId,
-            title: 'Project Proposal Rejected',
-            description: `Your project proposal "${p.name}" was rejected by ${auth.user!.name}.`,
-            type: 'project',
-            read: false,
-            createdAt: new Date().toISOString()
-          }
-        ]);
-      }
-      loadData();
-    } catch (err) {
-      toast.error('Failed to reject project');
-    }
-  }
-
+  let pendingProjects = $derived(projects.filter(p => p.status === 'pending'));
+  let activeProjects = $derived(projects.filter(p => p.status === 'active'));
   let totalStudents = $derived(activeProjects.reduce((sum, p) => sum + p.members.length, 0));
   let overdueMilestones = $derived(
     activeProjects.reduce((count, p) => {
@@ -329,21 +249,19 @@
       <Card class="flex flex-col gap-4">
         <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Recent Submissions Activity</h3>
         
-        <div class="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-1">
+        <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-1">
           {#each weeklyReports.slice().reverse() as rep}
             {@const proj = projects.find(pr => pr.id === rep.projectId)}
-            {#if proj}
-              <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
-                  <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
-                    {rep.status}
-                  </Badge>
-                </div>
-                <p class="text-3xs text-muted-foreground truncate">Project: {proj.name}</p>
-                <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+            <div class="p-3 border rounded-xl bg-card flex flex-col gap-1">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
+                <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
+                  {rep.status}
+                </Badge>
               </div>
-            {/if}
+              <p class="text-3xs text-muted-foreground truncate">Project: {proj?.name}</p>
+              <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+            </div>
           {:else}
             <div class="py-8 text-center text-xs text-muted-foreground italic">No recent submission activities found.</div>
           {/each}

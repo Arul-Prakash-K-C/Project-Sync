@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type User, type Department, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Users as UsersIcon, Building2, FolderKanban, Plus, Trash2 } from 'lucide-svelte';
+  import { Users as UsersIcon, Building2, FolderKanban, Plus, Trash2, Download, Upload, RotateCcw } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -18,6 +19,39 @@
   let newDeptCode = $state('');
   let newDeptHead = $state('');
   let newDeptDesc = $state('');
+
+  let resetDialogOpen = $state(false);
+  let importFileInput = $state<HTMLInputElement | null>(null);
+
+  const usersByRole = $derived(
+    (['student', 'faculty', 'admin'] as const).map((role) => ({
+      label: role.charAt(0).toUpperCase() + role.slice(1),
+      count: users.filter((u) => u.role === role).length
+    }))
+  );
+
+  const usersByDepartment = $derived(
+    departments
+      .map((d) => ({ label: d.name, code: d.code, count: users.filter((u) => u.department === d.name).length }))
+      .sort((a, b) => b.count - a.count)
+  );
+
+  const projectsByStatus = $derived(
+    (
+      [
+        { status: 'active', label: 'Active', barClass: 'bg-emerald-500' },
+        { status: 'pending', label: 'Pending', barClass: 'bg-amber-500' },
+        { status: 'archived', label: 'Archived', barClass: 'bg-muted-foreground' },
+        { status: 'rejected', label: 'Rejected', barClass: 'bg-rose-500' }
+      ] as const
+    ).map((s) => ({ ...s, count: projects.filter((p) => p.status === s.status).length }))
+  );
+
+  const platformMilestoneCompletion = $derived.by(() => {
+    const allMilestones = projects.flatMap((p) => p.milestones);
+    if (allMilestones.length === 0) return 0;
+    return Math.round((allMilestones.filter((m) => m.completed).length / allMilestones.length) * 100);
+  });
 
   onMount(() => {
     loadData();
@@ -44,10 +78,54 @@
       toast.error("You cannot delete your own admin account.");
       return;
     }
-    const all = db.getUsers().filter(u => u.id !== userId);
-    db.saveUsers(all);
-    toast.success('User account removed');
-    loadData();
+    try {
+      const all = db.getUsers().filter(u => u.id !== userId);
+      db.saveUsers(all);
+      toast.success('User account removed');
+      loadData();
+    } catch (err) {
+      toast.error('Failed to remove user account');
+    }
+  }
+
+  function exportData() {
+    const data = db.exportAllData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `teamforge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Data exported');
+  }
+
+  function triggerImport() {
+    importFileInput?.click();
+  }
+
+  async function handleImportFile(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      db.importAllData(parsed);
+      toast.success('Data imported — reloading...');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (err) {
+      toast.error('Invalid backup file');
+    } finally {
+      (e.target as HTMLInputElement).value = '';
+    }
+  }
+
+  function confirmReset() {
+    db.resetAllData();
+    resetDialogOpen = false;
+    toast.success('Demo data reset');
+    auth.logout();
+    setTimeout(() => goto('/auth'), 400);
   }
 
   function handleCreateDept(e: SubmitEvent) {
@@ -84,6 +162,27 @@
         <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Platform Administration</h2>
         <p class="text-sm text-muted-foreground mt-1">Supervise accounts, configure academic departments, and manage global settings.</p>
       </div>
+      <div class="flex gap-2">
+        <Button variant="outline" size="sm" onclick={exportData}>
+          <Download class="w-3.5 h-3.5" />
+          Export Data
+        </Button>
+        <Button variant="outline" size="sm" onclick={triggerImport}>
+          <Upload class="w-3.5 h-3.5" />
+          Import Data
+        </Button>
+        <input
+          bind:this={importFileInput}
+          type="file"
+          accept="application/json"
+          class="hidden"
+          onchange={handleImportFile}
+        />
+        <Button variant="danger" size="sm" onclick={() => resetDialogOpen = true}>
+          <RotateCcw class="w-3.5 h-3.5" />
+          Reset Demo Data
+        </Button>
+      </div>
     </div>
 
     <!-- Quick Stats -->
@@ -115,6 +214,69 @@
         <div>
           <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Total Teams Projects</p>
           <p class="text-2xl font-black text-foreground mt-1">{projects.length}</p>
+        </div>
+      </Card>
+    </div>
+
+    <!-- Platform Analytics -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <Card>
+        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Accounts by Role</h3>
+        <div class="flex flex-col gap-3">
+          {#each usersByRole as r}
+            {@const pct = users.length > 0 ? Math.round((r.count / users.length) * 100) : 0}
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
+                <span>{r.label}</span>
+                <span>{r.count}</span>
+              </div>
+              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
+                <div class="h-full bg-primary" style="width: {pct}%"></div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Accounts by Department</h3>
+        <div class="flex flex-col gap-3">
+          {#each usersByDepartment as d}
+            {@const pct = users.length > 0 ? Math.round((d.count / users.length) * 100) : 0}
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
+                <span title={d.label}>{d.code}</span>
+                <span>{d.count}</span>
+              </div>
+              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
+                <div class="h-full bg-primary" style="width: {pct}%"></div>
+              </div>
+            </div>
+          {:else}
+            <p class="text-2xs text-muted-foreground italic">No departments registered yet.</p>
+          {/each}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Projects by Status</h3>
+        <div class="flex flex-col gap-3">
+          {#each projectsByStatus as s}
+            {@const pct = projects.length > 0 ? Math.round((s.count / projects.length) * 100) : 0}
+            <div class="flex flex-col gap-1">
+              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
+                <span>{s.label}</span>
+                <span>{s.count}</span>
+              </div>
+              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
+                <div class="h-full {s.barClass}" style="width: {pct}%"></div>
+              </div>
+            </div>
+          {/each}
+        </div>
+        <div class="mt-4 pt-3 border-t border-border/40 flex justify-between items-center">
+          <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Platform Milestone Completion</span>
+          <span class="text-sm font-black text-foreground">{platformMilestoneCompletion}%</span>
         </div>
       </Card>
     </div>
@@ -177,6 +339,10 @@
                     </div>
                   </td>
                 </tr>
+              {:else}
+                <tr>
+                  <td colspan="4" class="py-8 text-center text-xs text-muted-foreground italic">No user accounts registered yet.</td>
+                </tr>
               {/each}
             </tbody>
           </table>
@@ -208,6 +374,10 @@
               Head: {d.headName}
             </div>
           </Card>
+        {:else}
+          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-2xl">
+            No academic departments registered yet. Use "Add Department" to create one.
+          </div>
         {/each}
       </div>
     </div>
@@ -267,5 +437,17 @@
         <Button type="submit" variant="primary">Register Dept</Button>
       </div>
     </form>
+  </Dialog>
+
+  <Dialog bind:open={resetDialogOpen} title="Reset Demo Data">
+    <p class="text-sm text-muted-foreground leading-relaxed">
+      This clears every locally stored account, project, task, and message in this browser and
+      re-seeds the built-in demo data. This cannot be undone — export a backup first if you want
+      to keep the current state. You'll be signed out afterward.
+    </p>
+    {#snippet footer()}
+      <Button variant="outline" onclick={() => resetDialogOpen = false}>Cancel</Button>
+      <Button variant="danger" onclick={confirmReset}>Reset Everything</Button>
+    {/snippet}
   </Dialog>
 {/if}

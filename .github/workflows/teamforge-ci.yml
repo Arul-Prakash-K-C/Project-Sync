@@ -1,0 +1,40 @@
+name: TeamForge CI
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'TeamForge/**'
+      - '.github/workflows/teamforge-ci.yml'
+  pull_request:
+    paths:
+      - 'TeamForge/**'
+      - '.github/workflows/teamforge-ci.yml'
+
+defaults:
+  run:
+    working-directory: TeamForge
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: TeamForge/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check (svelte-check)
+        run: npm run check
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build

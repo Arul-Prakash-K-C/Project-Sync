@@ -40,6 +40,9 @@
 
 <svelte:head>
   <link rel="icon" href={favicon} />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#18181b" />
+  <meta name="description" content="TeamForge is an intelligent project team finder and collaboration platform for academic capstone teams — form teams, track milestones and tasks, and manage faculty review in one place." />
   <title>TeamForge – Intelligent Project Team Finder & Collaboration Platform</title>
 </svelte:head>
 

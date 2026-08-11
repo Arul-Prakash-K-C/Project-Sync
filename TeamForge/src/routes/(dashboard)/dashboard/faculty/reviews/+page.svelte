@@ -20,15 +20,25 @@
   function loadData() {
     if (auth.user) {
       projects = db.getProjects().filter(p => p.department === auth.user!.department);
-      weeklyReports = db.getWeeklyReports();
+      weeklyReports = db.getWeeklyReports().filter(rep => projects.some(p => p.id === rep.projectId));
     }
   }
 
   function reviewReportAction(report: WeeklyReport, status: 'approved' | 'revision_requested') {
     try {
       db.updateWeeklyReportStatus(report.id, status, reviewFeedbackText);
-      
+
       const p = projects.find(proj => proj.id === report.projectId);
+
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        status === 'approved' ? 'Approved weekly report' : 'Requested revision on weekly report',
+        'weekly_report',
+        report.id,
+        `Week ${report.weekNumber}${p ? ` — ${p.name}` : ''}`
+      );
+
       if (p) {
         db.saveNotifications([
           {
@@ -99,7 +109,7 @@
       <!-- Review details & feedback panel -->
       <Card>
         {#if reviewingReport}
-          {@const reviewingProj = projects.find(p => p.id === reviewingReport.projectId)}
+          {@const reviewingProj = projects.find(p => p.id === reviewingReport!.projectId)}
           <div class="flex flex-col gap-4">
             <div class="flex justify-between items-start border-b border-border/40 pb-2">
               <div class="flex flex-col min-w-0">

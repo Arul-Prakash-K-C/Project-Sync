@@ -5,6 +5,7 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
+  import { getDashboardRoute } from '$lib/utils/navigation';
   import { Sparkles, ArrowRight, ShieldCheck, Mail, Lock, User as UserIcon } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
@@ -39,51 +40,42 @@
     }
   });
 
-  function handleLogin(e: SubmitEvent) {
+  async function handleLogin(e: SubmitEvent) {
     e.preventDefault();
     try {
-      const user = auth.login(loginEmail);
+      const user = await auth.login(loginEmail, loginPassword);
       toast.success(`Welcome back, ${user.name}!`);
-      redirectUser(user.role);
+      goto(getDashboardRoute(user.role));
     } catch (err: any) {
       toast.error(err.message || 'Login failed');
     }
   }
 
-  function handleRegister(e: SubmitEvent) {
+  async function handleRegister(e: SubmitEvent) {
     e.preventDefault();
-    if (!registerName || !registerEmail) {
+    if (!registerName || !registerEmail || !registerPassword) {
       toast.error('Please fill all required fields');
       return;
     }
     try {
-      const user = auth.register(
+      const user = await auth.register(
         registerName,
         registerEmail,
+        registerPassword,
         registerRole,
         registerDept,
         registerRole === 'student' ? registerYear : undefined
       );
       toast.success('Registration successful!');
-      redirectUser(user.role);
+      goto(getDashboardRoute(user.role));
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
     }
   }
 
-  function redirectUser(role: 'student' | 'faculty' | 'admin') {
-    if (role === 'student') {
-      goto('/dashboard/student');
-    } else if (role === 'faculty') {
-      goto('/dashboard/faculty');
-    } else {
-      goto('/dashboard/admin');
-    }
-  }
-
   function fillDemoCredentials(email: string) {
     loginEmail = email;
-    loginPassword = 'password';
+    loginPassword = 'demo1234';
   }
 </script>
 
@@ -138,9 +130,10 @@
               <span class="absolute left-3.5 top-3 text-muted-foreground"><Lock class="w-4.5 h-4.5" /></span>
               <input 
                 id="password"
-                type="password" 
-                placeholder="••••••••" 
+                type="password"
+                placeholder="••••••••"
                 bind:value={loginPassword}
+                required
                 class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>
@@ -211,6 +204,22 @@
                 placeholder="jane@university.edu" 
                 bind:value={registerEmail}
                 required
+                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              />
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label for="reg-password" class="text-xs font-semibold text-foreground">Password</label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-3 text-muted-foreground"><Lock class="w-4.5 h-4.5" /></span>
+              <input
+                id="reg-password"
+                type="password"
+                placeholder="At least 6 characters"
+                bind:value={registerPassword}
+                required
+                minlength="6"
                 class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
               />
             </div>

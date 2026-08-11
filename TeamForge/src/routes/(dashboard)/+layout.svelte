@@ -27,7 +27,8 @@
     BarChart3,
     Megaphone,
     Notebook,
-    FileText
+    FileText,
+    History
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
 
@@ -36,6 +37,7 @@
   const themeCtx = getContext<{ isDark: boolean; toggleTheme: () => void }>('theme');
 
   let sidebarOpen = $state(true);
+  let mobileSidebarOpen = $state(false);
   let notifOpen = $state(false);
   let notifications = $state<Notification[]>([]);
   let unreadCount = $derived(notifications.filter(n => !n.read).length);
@@ -63,16 +65,24 @@
   }
 
   function markAllAsRead() {
-    notifications = notifications.map(n => ({ ...n, read: true }));
-    db.saveNotifications(notifications);
+    try {
+      notifications = notifications.map(n => ({ ...n, read: true }));
+      db.saveNotifications(notifications);
+    } catch (err) {
+      toast.error('Failed to update notifications');
+    }
   }
 
   function deleteNotification(id: string) {
-    notifications = notifications.filter(n => n.id !== id);
-    if (auth.user) {
-      const all = db.getNotifications(auth.user.id);
-      const remaining = all.filter(n => n.id !== id);
-      db.saveNotifications(remaining);
+    try {
+      notifications = notifications.filter(n => n.id !== id);
+      if (auth.user) {
+        const all = db.getNotifications(auth.user.id);
+        const remaining = all.filter(n => n.id !== id);
+        db.saveNotifications(remaining);
+      }
+    } catch (err) {
+      toast.error('Failed to delete notification');
     }
   }
 
@@ -93,7 +103,8 @@
     { href: '/dashboard/faculty/meetings', label: 'Review Scheduler', icon: Clock },
     { href: '/dashboard/faculty/announcements', label: 'Announcements', icon: Megaphone },
     { href: '/dashboard/faculty/notes', label: 'Private Notes', icon: Notebook },
-    { href: '/dashboard/faculty/reports', label: 'Reports Hub', icon: FileText }
+    { href: '/dashboard/faculty/reports', label: 'Reports Hub', icon: FileText },
+    { href: '/dashboard/faculty/activity-log', label: 'Activity Log', icon: History }
   ];
 
   const adminLinks = [
@@ -110,10 +121,23 @@
 {#if auth.user}
   <div class="min-h-screen flex bg-background text-foreground overflow-hidden">
     
+    <!-- Mobile Sidebar Backdrop -->
+    {#if mobileSidebarOpen}
+      <div
+        onclick={() => mobileSidebarOpen = false}
+        onkeydown={(e) => e.key === 'Enter' && (mobileSidebarOpen = false)}
+        role="button"
+        tabindex="-1"
+        aria-label="Close sidebar overlay"
+        class="fixed inset-0 bg-black/40 backdrop-blur-xs z-30 md:hidden"
+      ></div>
+    {/if}
+
     <!-- Sidebar -->
-    <aside 
-      class="border-r border-border/40 backdrop-blur-md bg-card/60 transition-all duration-300 z-30 flex flex-col shrink-0 relative
-        {sidebarOpen ? 'w-64' : 'w-20'}"
+    <aside
+      class="fixed md:relative inset-y-0 left-0 h-full border-r border-border/40 backdrop-blur-md bg-card/95 md:bg-card/60 transition-all duration-300 z-40 md:z-30 flex flex-col shrink-0
+        w-64 {sidebarOpen ? 'md:w-64' : 'md:w-20'}
+        {mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0"
     >
       <!-- Sidebar Header -->
       <div class="h-16 border-b border-border/30 flex items-center justify-between px-5 {sidebarOpen ? '' : 'justify-center px-0'}">
@@ -139,6 +163,7 @@
         {#each links as item}
           <a
             href={item.href}
+            onclick={() => mobileSidebarOpen = false}
             class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group hover:bg-secondary
               text-muted-foreground hover:text-foreground {sidebarOpen ? '' : 'justify-center px-0'}"
           >
@@ -192,8 +217,8 @@
       <header class="h-16 border-b border-border/40 backdrop-blur-md bg-background/60 flex items-center justify-between px-6 z-20">
         <div class="flex items-center gap-3">
           <!-- Mobile Sidebar Toggle -->
-          <button 
-            onclick={() => sidebarOpen = !sidebarOpen}
+          <button
+            onclick={() => mobileSidebarOpen = !mobileSidebarOpen}
             class="p-2 border border-border rounded-xl hover:bg-secondary cursor-pointer md:hidden text-foreground"
           >
             <Menu class="w-5 h-5" />
