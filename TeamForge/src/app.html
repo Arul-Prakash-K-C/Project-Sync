@@ -4,6 +4,19 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// Applied before first paint so a dark-theme visitor never sees a white
+			// flash while the app hydrates. The layout re-reads the same key on mount.
+			(function () {
+				try {
+					var saved = localStorage.getItem('theme');
+					var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+					if (saved === 'dark' || (!saved && systemDark)) {
+						document.documentElement.classList.add('dark');
+					}
+				} catch (e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

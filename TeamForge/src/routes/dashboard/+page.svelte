@@ -13,6 +13,20 @@
   });
 </script>
 
-<div class="h-96 flex items-center justify-center">
-  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+<svelte:head>
+  <title>Redirecting — TeamForge</title>
+</svelte:head>
+
+<!-- Role-based redirect. It is on screen for a frame or two, so it says what it
+     is doing rather than showing a bare spinner on an empty page. -->
+<div
+  class="min-h-screen flex flex-col items-center justify-center gap-4 bg-background"
+  role="status"
+  aria-live="polite"
+>
+  <span
+    class="w-6 h-6 rounded-full border-2 border-accent border-r-transparent animate-spin"
+    aria-hidden="true"
+  ></span>
+  <p class="text-sm font-semibold text-muted-foreground">Taking you to your dashboard…</p>
 </div>

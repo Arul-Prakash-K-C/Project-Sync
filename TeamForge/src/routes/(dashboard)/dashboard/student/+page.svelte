@@ -3,11 +3,30 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type Task, type Announcement, type Meeting } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Plus, FolderKanban, CheckSquare, Clock, ArrowRight, UserPlus, Check, X, ShieldAlert, Bell, Calendar } from 'lucide-svelte';
+  import {
+    Plus,
+    FolderKanban,
+    CheckSquare,
+    Clock,
+    ArrowRight,
+    UserPlus,
+    Check,
+    X,
+    ShieldAlert,
+    Megaphone,
+    Calendar,
+    MapPin,
+    Compass
+  } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import StatCard from '$lib/components/ui/StatCard.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
 
   let projects = $state<Project[]>([]);
   let invitations = $state<Project[]>([]);
@@ -15,6 +34,10 @@
   let announcements = $state<Announcement[]>([]);
   let meetings = $state<Meeting[]>([]);
   let createDialogOpen = $state(false);
+  let submitting = $state(false);
+  /** Data comes from browser storage on mount; until then the page shows its
+      own shape rather than an empty screen that looks like "you have nothing". */
+  let loaded = $state(false);
 
   // Form states
   let newProjectName = $state('');
@@ -28,29 +51,35 @@
     if (departments.length > 0) {
       newProjectDept = departments[0].name;
     }
+    loaded = true;
   });
 
   function loadData() {
     if (auth.user) {
       // Load student projects
-      projects = db.getProjects().filter(p => p.members.some(m => m.userId === auth.user!.id));
+      projects = db.getProjects().filter((p) => p.members.some((m) => m.userId === auth.user!.id));
       // Load invites
-      invitations = db.getProjects().filter(p => p.pendingInvites.includes(auth.user!.id));
+      invitations = db.getProjects().filter((p) => p.pendingInvites.includes(auth.user!.id));
       // Load tasks
-      allTasks = db.getTasks().filter(t => t.assignees.includes(auth.user!.id));
-      
+      allTasks = db.getTasks().filter((t) => t.assignees.includes(auth.user!.id));
+
       // Load announcements for any project the student is part of
-      const studentProjectIds = projects.map(p => p.id);
-      announcements = db.getAnnouncements().filter(a => a.targetType === 'all' || a.targetIds.some(id => studentProjectIds.includes(id)));
-      
+      const studentProjectIds = projects.map((p) => p.id);
+      announcements = db
+        .getAnnouncements()
+        .filter((a) => a.targetType === 'all' || a.targetIds.some((id) => studentProjectIds.includes(id)));
+
       // Load scheduled meetings for student's projects
-      meetings = db.getMeetings().filter(m => studentProjectIds.includes(m.projectId) && m.status === 'scheduled');
+      meetings = db
+        .getMeetings()
+        .filter((m) => studentProjectIds.includes(m.projectId) && m.status === 'scheduled');
     }
   }
 
   function handleCreateProject(e: SubmitEvent) {
     e.preventDefault();
     if (!auth.user) return;
+    submitting = true;
     try {
       const newP = db.createProject(newProjectName, newProjectDesc, newProjectDept, auth.user);
       toast.success(`Project "${newP.name}" created. Pending faculty approval.`);
@@ -60,6 +89,8 @@
       loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create project');
+    } finally {
+      submitting = false;
     }
   }
 
@@ -86,265 +117,332 @@
   }
 
   // Derived stats
-  const activeCount = $derived(projects.filter(p => p.status === 'active').length);
-  const pendingCount = $derived(projects.filter(p => p.status === 'pending').length);
-  const completedTaskCount = $derived(allTasks.filter(t => t.column === 'completed').length);
+  const activeCount = $derived(projects.filter((p) => p.status === 'active').length);
+  const pendingCount = $derived(projects.filter((p) => p.status === 'pending').length);
+  const completedTaskCount = $derived(allTasks.filter((t) => t.column === 'completed').length);
   const totalTaskCount = $derived(allTasks.length);
+
+  function milestoneProgress(p: Project) {
+    if (p.milestones.length === 0) return 0;
+    return Math.round((p.milestones.filter((m) => m.completed).length / p.milestones.length) * 100);
+  }
+
+  const statusTone = {
+    active: 'success',
+    pending: 'warning',
+    rejected: 'danger',
+    archived: 'secondary'
+  } as const;
 </script>
 
+<svelte:head>
+  <title>Dashboard — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8">
-    <!-- Greeting & Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Welcome back, {auth.user.name}!</h2>
-        <p class="text-sm text-muted-foreground mt-1">Here is a summary of your academic teams and tasks.</p>
-      </div>
+  <div class="flex flex-col gap-7 max-w-7xl">
+    <PageHeader
+      title="Welcome back, {auth.user.name.split(' ')[0]}"
+      description="Your teams, the work assigned to you, and anything your supervisor needs you to see."
+    >
+      {#snippet actions()}
+        <Button variant="primary" onclick={() => (createDialogOpen = true)}>
+          <Plus class="w-4 h-4" />
+          Create project
+        </Button>
+      {/snippet}
+    </PageHeader>
 
-      <Button variant="primary" onclick={() => createDialogOpen = true}>
-        <Plus class="w-4 h-4" />
-        Create Project
-      </Button>
-    </div>
-
-    <!-- Alert Panel for Invitations -->
+    <!--
+      Invitations sit above everything else because they are the only thing on
+      this page that expires: a teammate is waiting on the answer.
+    -->
     {#if invitations.length > 0}
-      <div class="p-4 border border-primary/20 bg-primary/5 rounded-lg flex flex-col gap-3">
-        <div class="flex items-center gap-2">
-          <UserPlus class="w-5 h-5 text-primary" />
-          <h4 class="text-sm font-bold text-foreground">Pending Project Invitations</h4>
+      <section
+        aria-label="Pending project invitations"
+        class="rounded-lg border border-accent/30 bg-accent/6 p-4"
+      >
+        <div class="flex items-center gap-2 mb-3">
+          <UserPlus class="w-4 h-4 text-accent" aria-hidden="true" />
+          <h2 class="text-sm font-bold text-foreground">
+            {invitations.length} pending invitation{invitations.length === 1 ? '' : 's'}
+          </h2>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {#each invitations as inv}
-            <div class="flex items-center justify-between p-4 bg-card border rounded-md shadow-xs">
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {#each invitations as inv (inv.id)}
+            <li
+              class="flex items-center justify-between gap-3 p-3 bg-card border border-border rounded-md"
+            >
               <div class="flex flex-col min-w-0">
                 <span class="text-sm font-bold text-foreground truncate">{inv.name}</span>
-                <span class="text-xs text-muted-foreground">Invited by: {inv.ownerName}</span>
+                <span class="text-2xs text-muted-foreground">Invited by {inv.ownerName}</span>
               </div>
-              <div class="flex items-center gap-2">
-                <button 
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
                   onclick={() => acceptInvitation(inv.id)}
-                  class="p-2 bg-success/10 text-success hover:bg-success hover:text-white rounded-lg transition-all cursor-pointer"
-                  title="Accept Invite"
+                  class="icon-action text-success border-success/30 hover:bg-success hover:text-success-foreground hover:border-success"
+                  aria-label="Accept invitation to {inv.name}"
                 >
                   <Check class="w-4 h-4" />
                 </button>
-                <button 
+                <button
                   onclick={() => declineInvitation(inv.id)}
-                  class="p-2 bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-white rounded-lg transition-all cursor-pointer"
-                  title="Decline Invite"
+                  class="icon-action icon-action-danger"
+                  aria-label="Decline invitation to {inv.name}"
                 >
                   <X class="w-4 h-4" />
                 </button>
               </div>
-            </div>
+            </li>
           {/each}
-        </div>
-      </div>
+        </ul>
+      </section>
     {/if}
 
-    <!-- Quick Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary">
-          <FolderKanban class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Active Projects</p>
-          <p class="text-2xl font-black text-foreground mt-1">{activeCount}</p>
-        </div>
-      </Card>
+    <!-- Standing figures -->
+    <section aria-label="Summary" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <StatCard
+        label="Active projects"
+        value={activeCount}
+        icon={FolderKanban}
+        tone="accent"
+        hint={pendingCount > 0 ? `${pendingCount} awaiting approval` : 'All proposals reviewed'}
+      />
+      <StatCard
+        label="Awaiting approval"
+        value={pendingCount}
+        icon={Clock}
+        tone="warning"
+        hint="Faculty reviews proposals before work starts"
+      />
+      <StatCard label="My tasks done" value="{completedTaskCount}/{totalTaskCount}" icon={CheckSquare} tone="success">
+        <ProgressBar
+          value={completedTaskCount}
+          max={Math.max(totalTaskCount, 1)}
+          tone="success"
+          size="sm"
+          label="Tasks assigned to me"
+        />
+      </StatCard>
+    </section>
 
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning">
-          <Clock class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Pending Approvals</p>
-          <p class="text-2xl font-black text-foreground mt-1">{pendingCount}</p>
-        </div>
-      </Card>
+    <!-- Main workflow: the teams themselves -->
+    <section aria-label="My teams and projects" class="flex flex-col gap-3">
+      <h2 class="font-display text-lg text-foreground">My teams &amp; projects</h2>
 
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success">
-          <CheckSquare class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">My Tasks Progress</p>
-          <p class="text-2xl font-black text-foreground mt-1">
-            {completedTaskCount} <span class="text-sm font-semibold text-muted-foreground">/ {totalTaskCount} done</span>
-          </p>
-        </div>
-      </Card>
-    </div>
-
-    <!-- Announcements & Meetings Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <!-- Announcements Panel -->
-      <Card class="flex flex-col gap-4">
-        <div class="flex items-center gap-2 border-b border-border/40 pb-2">
-          <Bell class="w-5 h-5 text-primary" />
-          <h3 class="text-lg font-bold text-foreground">Announcements</h3>
-        </div>
-        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
-          {#each announcements as ann}
-            <div class="p-4 border border-border/80 rounded-md bg-muted/5 flex flex-col gap-1.5">
-              <div class="flex justify-between items-start gap-4">
-                <span class="text-sm font-bold text-foreground">{ann.title}</span>
-                <Badge variant="info" class="text-3xs">Announcement</Badge>
-              </div>
-              <p class="text-xs text-muted-foreground leading-relaxed">{ann.content}</p>
-              <div class="flex justify-between items-center text-3xs text-muted-foreground mt-1 font-semibold">
-                <span>By: {ann.facultyName}</span>
-                <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
-              </div>
+      {#if !loaded}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" aria-busy="true">
+          {#each { length: 2 } as _, i (i)}
+            <div class="rounded-lg border border-border bg-card p-5 flex flex-col gap-3">
+              <div class="skeleton h-5 w-1/2"></div>
+              <div class="skeleton h-3 w-full"></div>
+              <div class="skeleton h-3 w-4/5"></div>
+              <div class="skeleton h-8 w-full mt-4"></div>
             </div>
-          {:else}
-            <div class="py-8 text-center text-xs text-muted-foreground italic">No active announcements.</div>
           {/each}
         </div>
-      </Card>
-
-      <!-- Meetings Panel -->
-      <Card class="flex flex-col gap-4">
-        <div class="flex items-center gap-2 border-b border-border/40 pb-2">
-          <Calendar class="w-5 h-5 text-success" />
-          <h3 class="text-lg font-bold text-foreground">Upcoming Project Reviews</h3>
-        </div>
-        <div class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
-          {#each meetings as meet}
-            <div class="p-4 border border-success/10 rounded-md bg-success/5 flex flex-col gap-2">
-              <div class="flex justify-between items-start gap-4">
-                <span class="text-sm font-bold text-foreground">{meet.title}</span>
-                <Badge variant="success" class="text-3xs">Scheduled</Badge>
-              </div>
-              <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-                <span class="font-bold text-foreground/80">Project: {meet.projectName}</span>
-                <span class="flex items-center gap-1.5 mt-0.5">
-                  <Clock class="w-3.5 h-3.5" />
-                  {meet.date} at {meet.time}
-                </span>
-                <span class="truncate mt-0.5 font-semibold text-primary">
-                  Location/Link: {meet.linkOrLocation}
-                </span>
-              </div>
-            </div>
-          {:else}
-            <div class="py-8 text-center text-xs text-muted-foreground italic">No review meetings scheduled.</div>
-          {/each}
-        </div>
-      </Card>
-    </div>
-
-    <!-- Active Projects List -->
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xl font-bold text-foreground">My Teams & Projects</h3>
-
-      {#if projects.length === 0}
-        <div class="py-12 border border-dashed rounded-lg flex flex-col items-center justify-center text-center">
-          <FolderKanban class="w-12 h-12 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">No active academic projects</p>
-          <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Create a new project or seek invitations from classmates to get started.</p>
-          <Button variant="outline" size="sm" class="mt-4" onclick={() => createDialogOpen = true}>
-            Create Project
-          </Button>
-        </div>
+      {:else if projects.length === 0}
+        <EmptyState
+          icon={FolderKanban}
+          title="No projects yet"
+          description="Start a proposal of your own, or head to Team Finder to join a classmate who is already recruiting."
+        >
+          {#snippet action()}
+            <Button variant="primary" size="sm" onclick={() => (createDialogOpen = true)}>
+              <Plus class="w-3.5 h-3.5" />
+              Create project
+            </Button>
+            <a href="/dashboard/student/team-finder">
+              <Button variant="outline" size="sm">
+                <Compass class="w-3.5 h-3.5" />
+                Find teammates
+              </Button>
+            </a>
+          {/snippet}
+        </EmptyState>
       {:else}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#each projects as p}
-            <Card hoverable class="flex flex-col justify-between h-56">
-              <div>
-                <div class="flex justify-between items-start gap-4">
-                  <h4 class="text-lg font-bold text-foreground truncate">{p.name}</h4>
-                  <Badge variant={p.status === 'active' ? 'success' : p.status === 'pending' ? 'warning' : 'danger'}>
-                    {p.status}
-                  </Badge>
-                </div>
-                <p class="text-xs text-muted-foreground mt-1 line-clamp-3 leading-relaxed">{p.description}</p>
-              </div>
-
-              <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
-                <!-- Team Avatars -->
-                <div class="flex -space-x-2">
-                  {#each p.members.slice(0, 4) as member}
-                    <img 
-                      src={member.avatar} 
-                      alt={member.name} 
-                      title={`${member.name} (${member.role})`}
-                      class="w-8 h-8 rounded-full border-2 border-card bg-muted"
-                    />
-                  {/each}
-                  {#if p.members.length > 4}
-                    <div class="w-8 h-8 rounded-full border-2 border-card bg-muted flex items-center justify-center text-3xs font-bold text-muted-foreground">
-                      +{p.members.length - 4}
-                    </div>
-                  {/if}
+        <ul class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {#each projects as p (p.id)}
+            <li>
+              <Card hoverable class="h-full flex flex-col">
+                <div class="flex items-start justify-between gap-3">
+                  <h3 class="text-base font-bold text-foreground leading-snug min-w-0">
+                    <a
+                      href="/dashboard/student/project/{p.id}"
+                      class="hover:text-accent transition-colors rounded-sm"
+                    >
+                      {p.name}
+                    </a>
+                  </h3>
+                  <Badge variant={statusTone[p.status]} dot class="capitalize shrink-0">{p.status}</Badge>
                 </div>
 
-                <a href="/dashboard/student/project/{p.id}">
-                  <Button variant="outline" size="sm">
-                    Enter Workspace
-                    <ArrowRight class="w-4 h-4" />
-                  </Button>
-                </a>
-              </div>
-            </Card>
+                <p class="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
+                  {p.description}
+                </p>
+
+                {#if p.milestones.length > 0}
+                  <ProgressBar
+                    class="mt-4"
+                    value={p.milestones.filter((m) => m.completed).length}
+                    max={p.milestones.length}
+                    label="Milestones"
+                    valueLabel="{p.milestones.filter((m) => m.completed).length} / {p.milestones.length}"
+                    tone={milestoneProgress(p) === 100 ? 'success' : 'accent'}
+                    size="sm"
+                  />
+                {/if}
+
+                <div class="mt-auto pt-4 flex items-center justify-between gap-3">
+                  <div class="flex -space-x-2" aria-label="{p.members.length} team members">
+                    {#each p.members.slice(0, 4) as member (member.userId)}
+                      <Avatar
+                        src={member.avatar}
+                        name={member.name}
+                        size="sm"
+                        class="ring-2 ring-card"
+                        title="{member.name} ({member.role})"
+                      />
+                    {/each}
+                    {#if p.members.length > 4}
+                      <span
+                        class="w-8 h-8 rounded-md ring-2 ring-card bg-secondary border border-border
+                          flex items-center justify-center text-3xs font-bold text-muted-foreground"
+                      >
+                        +{p.members.length - 4}
+                      </span>
+                    {/if}
+                  </div>
+
+                  <a href="/dashboard/student/project/{p.id}" class="shrink-0">
+                    <Button variant="outline" size="sm">
+                      Open workspace
+                      <ArrowRight class="w-3.5 h-3.5" />
+                    </Button>
+                  </a>
+                </div>
+              </Card>
+            </li>
           {/each}
-        </div>
+        </ul>
       {/if}
+    </section>
+
+    <!-- Secondary: things sent to you -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <Card title="Announcements" bodyClass="flex flex-col gap-2.5 max-h-72 overflow-y-auto">
+        {#each announcements as ann (ann.id)}
+          <article class="p-3 border border-border rounded-md">
+            <h3 class="text-sm font-bold text-foreground">{ann.title}</h3>
+            <p class="text-xs text-muted-foreground leading-relaxed mt-1 whitespace-pre-wrap">
+              {ann.content}
+            </p>
+            <p class="text-3xs text-muted-foreground mt-2">
+              {ann.facultyName} · {new Date(ann.createdAt).toLocaleDateString()}
+            </p>
+          </article>
+        {:else}
+          <EmptyState
+            icon={Megaphone}
+            title="No announcements"
+            description="Notices your supervisor broadcasts to the department or to your team appear here."
+            size="sm"
+          />
+        {/each}
+      </Card>
+
+      <Card title="Upcoming reviews" bodyClass="flex flex-col gap-2.5 max-h-72 overflow-y-auto">
+        {#each meetings as meet (meet.id)}
+          <article class="p-3 border border-border rounded-md">
+            <div class="flex items-start justify-between gap-3">
+              <h3 class="text-sm font-bold text-foreground">{meet.title}</h3>
+              <Badge variant="success" size="sm" class="shrink-0">Scheduled</Badge>
+            </div>
+            <p class="text-2xs text-muted-foreground mt-1">{meet.projectName}</p>
+            <dl class="flex flex-col gap-1 mt-2 text-2xs text-muted-foreground">
+              <div class="flex items-center gap-1.5">
+                <dt class="sr-only">When</dt>
+                <Calendar class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <dd class="tabular">{meet.date} at {meet.time}</dd>
+              </div>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <dt class="sr-only">Where</dt>
+                <MapPin class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <dd class="truncate font-semibold text-foreground">{meet.linkOrLocation}</dd>
+              </div>
+            </dl>
+          </article>
+        {:else}
+          <EmptyState
+            icon={Calendar}
+            title="No reviews scheduled"
+            description="Your supervisor schedules mentor reviews from the faculty side; they show up here once booked."
+            size="sm"
+          />
+        {/each}
+      </Card>
     </div>
   </div>
 
   <!-- Create Project Dialog -->
-  <Dialog bind:open={createDialogOpen} title="Launch Academic Project">
-    <form onsubmit={handleCreateProject} class="flex flex-col gap-4">
-      <div class="flex flex-col gap-1.5">
-        <label for="p-name" class="text-xs font-semibold text-foreground">Project Name</label>
-        <input 
+  <Dialog
+    bind:open={createDialogOpen}
+    title="Launch academic project"
+    description="Proposals go to your department's faculty for approval before the workspace opens."
+  >
+    <form id="create-project-form" onsubmit={handleCreateProject} class="flex flex-col gap-4">
+      <div class="field">
+        <label for="p-name" class="field-label">Project name</label>
+        <input
           id="p-name"
-          type="text" 
-          placeholder="e.g. Decentralized Study Hub" 
-          bind:value={newProjectName} 
+          type="text"
+          placeholder="e.g. Decentralized Study Hub"
+          bind:value={newProjectName}
           required
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          class="field-input"
         />
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="p-desc" class="text-xs font-semibold text-foreground">Project Description</label>
-        <textarea 
+      <div class="field">
+        <label for="p-desc" class="field-label">Project description</label>
+        <textarea
           id="p-desc"
-          placeholder="What is this project about? Highlight core deliverables..." 
-          bind:value={newProjectDesc} 
+          placeholder="What is this project about? Highlight core deliverables…"
+          bind:value={newProjectDesc}
           required
           rows="4"
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+          aria-describedby="p-desc-hint"
+          class="field-textarea"
         ></textarea>
+        <p id="p-desc-hint" class="field-hint">
+          Faculty read this first — say what you will build and what you will hand in.
+        </p>
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="p-dept" class="text-xs font-semibold text-foreground">Target Department</label>
-        <select
-          id="p-dept"
-          bind:value={newProjectDept}
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-        >
-          {#each departments as d}
+      <div class="field">
+        <label for="p-dept" class="field-label">Target department</label>
+        <select id="p-dept" bind:value={newProjectDept} class="field-select">
+          {#each departments as d (d.id)}
             <option value={d.name}>{d.name}</option>
           {/each}
         </select>
       </div>
 
-      <!-- Warning note about approvals -->
-      <div class="p-3 bg-warning/10 border border-warning/20 text-warning  rounded-md flex gap-2.5 text-xs">
-        <ShieldAlert class="w-4 h-4 shrink-0 mt-0.5" />
-        <span>New projects must be approved by faculty members before matching teams and tasks can be managed.</span>
-      </div>
-
-      <div class="flex justify-end gap-2 mt-2">
-        <Button type="button" variant="outline" onclick={() => createDialogOpen = false}>Cancel</Button>
-        <Button type="submit" variant="primary">Submit Proposal</Button>
+      <div
+        class="p-3 bg-warning/10 border border-warning/25 text-warning rounded-md flex gap-2.5 text-xs leading-relaxed"
+      >
+        <ShieldAlert class="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+        <span>
+          New projects must be approved by faculty before teams and tasks can be managed.
+        </span>
       </div>
     </form>
+
+    {#snippet footer()}
+      <Button type="button" variant="outline" onclick={() => (createDialogOpen = false)}>Cancel</Button>
+      <Button type="submit" form="create-project-form" variant="primary" loading={submitting}>
+        Submit proposal
+      </Button>
+    {/snippet}
   </Dialog>
 {/if}

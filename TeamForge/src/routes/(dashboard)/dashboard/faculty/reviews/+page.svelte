@@ -3,15 +3,20 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type WeeklyReport } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Clock } from 'lucide-svelte';
+  import { Clock, ClipboardList, Check, RotateCcw } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Tabs from '$lib/components/ui/Tabs.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
   let projects = $state<Project[]>([]);
   let weeklyReports = $state<WeeklyReport[]>([]);
   let reviewingReport = $state<WeeklyReport | null>(null);
   let reviewFeedbackText = $state('');
+  /** Pending work is the default view — an inbox opens on what is unread. */
+  let filter = $state<'pending' | 'all'>('pending');
 
   onMount(() => {
     loadData();
@@ -19,16 +24,28 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter(p => p.department === auth.user!.department);
-      weeklyReports = db.getWeeklyReports().filter(rep => projects.some(p => p.id === rep.projectId));
+      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      weeklyReports = db.getWeeklyReports().filter((rep) => projects.some((p) => p.id === rep.projectId));
     }
   }
+
+  const pendingCount = $derived(weeklyReports.filter((r) => r.status === 'pending').length);
+  const visibleReports = $derived(
+    filter === 'pending' ? weeklyReports.filter((r) => r.status === 'pending') : weeklyReports
+  );
+
+  const statusTone = { approved: 'success', pending: 'warning', revision_requested: 'danger' } as const;
+  const statusLabel = {
+    approved: 'Approved',
+    pending: 'Pending',
+    revision_requested: 'Revision requested'
+  } as const;
 
   function reviewReportAction(report: WeeklyReport, status: 'approved' | 'revision_requested') {
     try {
       db.updateWeeklyReportStatus(report.id, status, reviewFeedbackText);
 
-      const p = projects.find(proj => proj.id === report.projectId);
+      const p = projects.find((proj) => proj.id === report.projectId);
 
       db.logAudit(
         auth.user!.id,
@@ -45,7 +62,9 @@
             id: `notif_${Date.now()}`,
             userId: report.submittedBy,
             title: status === 'approved' ? 'Weekly Report Approved' : 'Changes Requested on Weekly Report',
-            description: `Weekly Report for Week {report.weekNumber} has been updated to "${status}" by supervisor. Feedback: "${reviewFeedbackText}"`,
+            // The week number was interpolated with single braces, so students
+            // were notified about "Week {report.weekNumber}" verbatim.
+            description: `Weekly Report for Week ${report.weekNumber} has been updated to "${status}" by supervisor. Feedback: "${reviewFeedbackText}"`,
             type: 'project',
             read: false,
             createdAt: new Date().toISOString(),
@@ -53,8 +72,8 @@
           }
         ]);
       }
-      
-      toast.success(`Weekly Report marked as ${status}`);
+
+      toast.success(`Weekly Report marked as ${status.replace('_', ' ')}`);
       reviewingReport = null;
       reviewFeedbackText = '';
       loadData();
@@ -64,102 +83,166 @@
   }
 </script>
 
-{#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    <div class="flex flex-col border-b border-border/40 pb-4">
-      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Weekly Progress Reviews</h2>
-      <p class="text-sm text-muted-foreground mt-1">Review weekly reports submitted by student teams and provide guidance feedback.</p>
-    </div>
+<svelte:head>
+  <title>Weekly Reviews — TeamForge</title>
+</svelte:head>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- List reports -->
-      <Card class="lg:col-span-2 flex flex-col gap-4">
-        <div class="border-b border-border/40 pb-2 mb-2">
-          <h3 class="text-lg font-bold text-foreground">Submitted Weekly Reports</h3>
-        </div>
-        
-        <div class="flex flex-col gap-4">
-          {#each weeklyReports as rep}
-            {@const proj = projects.find(p => p.id === rep.projectId)}
+{#if auth.user}
+  <div class="flex flex-col gap-6 max-w-7xl">
+    <PageHeader
+      title="Weekly reviews"
+      icon={Clock}
+      description="Reports submitted by teams in {auth.user.department}. Approve them or send them back with guidance."
+    />
+
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+      <div class="lg:col-span-3 flex flex-col gap-3">
+        <Tabs
+          label="Report filter"
+          items={[
+            { value: 'pending', label: 'Needs review', badge: pendingCount },
+            { value: 'all', label: 'All reports', badge: weeklyReports.length }
+          ]}
+          bind:active={filter}
+        />
+
+        <ul class="flex flex-col gap-2">
+          {#each visibleReports as rep (rep.id)}
+            {@const proj = projects.find((p) => p.id === rep.projectId)}
             {#if proj}
-              <div 
-                onclick={() => reviewingReport = rep}
-                onkeydown={(e) => e.key === 'Enter' && (reviewingReport = rep)}
-                role="button"
-                tabindex="0"
-                class="p-4 border rounded-lg hover:border-primary/20 bg-card cursor-pointer transition-all flex justify-between items-center"
-              >
-                <div class="flex flex-col min-w-0">
-                  <span class="text-sm font-extrabold text-foreground truncate">Week {rep.weekNumber} Report - {proj.name}</span>
-                  <span class="text-3xs text-muted-foreground mt-1">Submitted by {rep.submittedByName} on {new Date(rep.submittedAt).toLocaleDateString()}</span>
-                </div>
-                <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
-                  {rep.status}
-                </Badge>
-              </div>
+              {@const isOpen = reviewingReport?.id === rep.id}
+              <li>
+                <button
+                  onclick={() => {
+                    reviewingReport = rep;
+                    reviewFeedbackText = rep.feedback ?? '';
+                  }}
+                  aria-current={isOpen ? 'true' : undefined}
+                  class="w-full text-left p-4 border rounded-md transition-colors cursor-pointer
+                    {isOpen ? 'border-accent bg-accent/8' : 'border-border bg-card hover:bg-muted/30'}"
+                >
+                  <span class="flex justify-between items-start gap-3">
+                    <span class="min-w-0">
+                      <span class="block text-sm font-bold text-foreground truncate">
+                        Week {rep.weekNumber} — {proj.name}
+                      </span>
+                      <span class="block text-2xs text-muted-foreground mt-1">
+                        {rep.submittedByName} ·
+                        <span class="tabular">{new Date(rep.submittedAt).toLocaleDateString()}</span>
+                      </span>
+                    </span>
+                    <Badge variant={statusTone[rep.status]} dot size="sm" class="shrink-0">
+                      {statusLabel[rep.status]}
+                    </Badge>
+                  </span>
+                </button>
+              </li>
             {/if}
           {:else}
-            <div class="py-12 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
-              No weekly progress reports submitted yet.
-            </div>
+            <li>
+              <!-- "All caught up" and "nothing has arrived" are different
+                   situations and must not share a message. -->
+              <EmptyState
+                icon={ClipboardList}
+                title={weeklyReports.length === 0
+                  ? 'No reports yet'
+                  : filter === 'pending'
+                    ? 'Nothing to review'
+                    : 'No reports match'}
+                description={weeklyReports.length === 0
+                  ? 'Weekly reports from your teams appear here as students submit them.'
+                  : 'Every submitted report has been actioned. Switch to "All reports" to revisit past weeks.'}
+              />
+            </li>
           {/each}
-        </div>
-      </Card>
+        </ul>
+      </div>
 
-      <!-- Review details & feedback panel -->
-      <Card>
-        {#if reviewingReport}
-          {@const reviewingProj = projects.find(p => p.id === reviewingReport!.projectId)}
-          <div class="flex flex-col gap-4">
-            <div class="flex justify-between items-start border-b border-border/40 pb-2">
-              <div class="flex flex-col min-w-0">
-                <span class="font-extrabold text-sm text-foreground truncate">Reviewing Week {reviewingReport.weekNumber} Report</span>
-                <span class="text-3xs text-muted-foreground mt-0.5">{reviewingProj?.name}</span>
-              </div>
-              <button onclick={() => reviewingReport = null} class="text-xs text-muted-foreground hover:text-foreground cursor-pointer">Close</button>
-            </div>
+      <div class="lg:col-span-2 lg:sticky lg:top-22">
+        <Card>
+          {#if reviewingReport}
+            {@const reviewingProj = projects.find((p) => p.id === reviewingReport!.projectId)}
+            <div class="flex flex-col gap-4">
+              <header class="flex justify-between items-start gap-3 border-b border-border pb-3">
+                <div class="min-w-0">
+                  <h2 class="text-sm font-bold text-foreground">
+                    Week {reviewingReport.weekNumber} report
+                  </h2>
+                  <p class="text-2xs text-muted-foreground mt-0.5 truncate">{reviewingProj?.name}</p>
+                </div>
+                <button
+                  onclick={() => (reviewingReport = null)}
+                  class="text-2xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer rounded-sm shrink-0"
+                >
+                  Close
+                </button>
+              </header>
 
-            <div class="flex flex-col gap-3 text-xs">
-              <div class="p-3 bg-muted/10 border rounded-md">
-                <span class="font-bold text-foreground/80 block mb-0.5">Key Achievements:</span>
-                <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.achievements}</p>
-              </div>
-              <div class="p-3 bg-muted/10 border rounded-md">
-                <span class="font-bold text-foreground/80 block mb-0.5">Planned Work:</span>
-                <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.plannedTasks}</p>
-              </div>
-              <div class="p-3 bg-muted/10 border rounded-md">
-                <span class="font-bold text-foreground/80 block mb-0.5">Blockers:</span>
-                <p class="text-muted-foreground whitespace-pre-wrap leading-relaxed">{reviewingReport.blockers || 'None'}</p>
-              </div>
-            </div>
+              <dl class="flex flex-col gap-2.5">
+                <div class="p-3 bg-muted/30 border border-border rounded-md">
+                  <dt class="eyebrow">Achievements</dt>
+                  <dd class="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed mt-1.5">
+                    {reviewingReport.achievements}
+                  </dd>
+                </div>
+                <div class="p-3 bg-muted/30 border border-border rounded-md">
+                  <dt class="eyebrow">Planned work</dt>
+                  <dd class="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed mt-1.5">
+                    {reviewingReport.plannedTasks}
+                  </dd>
+                </div>
+                <div class="p-3 bg-muted/30 border border-border rounded-md">
+                  <dt class="eyebrow">Blockers</dt>
+                  <dd class="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed mt-1.5">
+                    {reviewingReport.blockers || 'None'}
+                  </dd>
+                </div>
+              </dl>
 
-            <div class="flex flex-col gap-2 mt-2 border-t border-border/40 pt-4">
-              <label for="rev-fb" class="text-xs font-bold text-foreground">Supervisor Evaluation & Feedback</label>
-              <textarea 
-                id="rev-fb"
-                placeholder="Provide guidance, note modifications, or approve weekly report details..." 
-                bind:value={reviewFeedbackText}
-                rows="3"
-                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
-              ></textarea>
-              
-              <div class="flex gap-2 justify-end mt-1">
-                <Button variant="danger" size="sm" onclick={() => reviewReportAction(reviewingReport!, 'revision_requested')}>
-                  Request Changes
+              <div class="field border-t border-border pt-4">
+                <label for="rev-fb" class="field-label">Supervisor feedback</label>
+                <textarea
+                  id="rev-fb"
+                  placeholder="Provide guidance, or note what has to change before this week can be approved…"
+                  bind:value={reviewFeedbackText}
+                  rows="4"
+                  aria-describedby="rev-fb-hint"
+                  class="field-textarea"
+                ></textarea>
+                <p id="rev-fb-hint" class="field-hint">
+                  Sent to the student who submitted the report, and shown on the project workspace.
+                </p>
+              </div>
+
+              <div class="flex flex-wrap gap-2 justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onclick={() => reviewReportAction(reviewingReport!, 'revision_requested')}
+                >
+                  <RotateCcw class="w-3.5 h-3.5" />
+                  Request changes
                 </Button>
-                <Button variant="primary" size="sm" onclick={() => reviewReportAction(reviewingReport!, 'approved')}>
-                  Approve Report
+                <Button
+                  variant="success"
+                  size="sm"
+                  onclick={() => reviewReportAction(reviewingReport!, 'approved')}
+                >
+                  <Check class="w-3.5 h-3.5" />
+                  Approve
                 </Button>
               </div>
             </div>
-          </div>
-        {:else}
-          <div class="h-44 flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
-            Select a weekly report on the left to read details and submit evaluation.
-          </div>
-        {/if}
-      </Card>
+          {:else}
+            <EmptyState
+              icon={ClipboardList}
+              title="No report open"
+              description="Choose a report on the left to read what the team submitted and record your evaluation."
+              size="sm"
+            />
+          {/if}
+        </Card>
+      </div>
     </div>
   </div>
 {/if}

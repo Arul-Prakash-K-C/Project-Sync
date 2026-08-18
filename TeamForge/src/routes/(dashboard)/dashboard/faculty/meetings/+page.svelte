@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Meeting, type CategorizedFeedback } from '$lib/services/db';
+  import { db, type Project, type Meeting } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Plus, Calendar, Clock, MessageSquare } from 'lucide-svelte';
+  import { Plus, Calendar, Clock, MessageSquare, MapPin, AlertTriangle } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
   let projects = $state<Project[]>([]);
   let meetings = $state<Meeting[]>([]);
@@ -27,16 +29,21 @@
   let feedbackText = $state('');
   let feedbackDialogOpen = $state(false);
 
+  /** Cancelling used to go through `window.confirm`, which cannot say which
+      meeting is about to be cancelled or who gets notified. */
+  let cancelDialogOpen = $state(false);
+  let meetingToCancel = $state<Meeting | null>(null);
+
   onMount(() => {
     loadData();
   });
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter(p => p.department === auth.user!.department);
+      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
       meetings = db.getMeetings();
 
-      const activeP = projects.filter(p => p.status === 'active');
+      const activeP = projects.filter((p) => p.status === 'active');
       if (activeP.length > 0) {
         if (!scheduleProjectId) scheduleProjectId = activeP[0].id;
         if (!feedbackProjectId) feedbackProjectId = activeP[0].id;
@@ -44,13 +51,32 @@
     }
   }
 
-  let activeProjects = $derived(projects.filter(p => p.status === 'active'));
-  let upcomingMeetings = $derived(meetings.filter(m => m.status === 'scheduled'));
+  let activeProjects = $derived(projects.filter((p) => p.status === 'active'));
+  let upcomingMeetings = $derived(meetings.filter((m) => m.status === 'scheduled'));
+
+  function openScheduleDialog() {
+    editingMeeting = null;
+    meetingTitle = '';
+    meetingDate = '';
+    meetingTime = '';
+    meetingLocation = '';
+    scheduleDialogOpen = true;
+  }
+
+  function editMeeting(meet: Meeting) {
+    editingMeeting = meet;
+    scheduleProjectId = meet.projectId;
+    meetingTitle = meet.title;
+    meetingDate = meet.date;
+    meetingTime = meet.time;
+    meetingLocation = meet.linkOrLocation;
+    scheduleDialogOpen = true;
+  }
 
   function handleScheduleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!scheduleProjectId || !meetingTitle || !meetingDate || !meetingTime || !meetingLocation) return;
-    const proj = projects.find(p => p.id === scheduleProjectId);
+    const proj = projects.find((p) => p.id === scheduleProjectId);
     if (!proj) return;
 
     try {
@@ -62,8 +88,8 @@
           linkOrLocation: meetingLocation
         });
         toast.success('Review meeting rescheduled!');
-        
-        proj.members.forEach(member => {
+
+        proj.members.forEach((member) => {
           db.saveNotifications([
             {
               id: `notif_${Date.now()}_${member.userId}`,
@@ -79,10 +105,17 @@
         });
         editingMeeting = null;
       } else {
-        db.scheduleMeeting(scheduleProjectId, proj.name, meetingTitle, meetingDate, meetingTime, meetingLocation);
+        db.scheduleMeeting(
+          scheduleProjectId,
+          proj.name,
+          meetingTitle,
+          meetingDate,
+          meetingTime,
+          meetingLocation
+        );
         toast.success('Review meeting scheduled!');
-        
-        proj.members.forEach(member => {
+
+        proj.members.forEach((member) => {
           db.saveNotifications([
             {
               id: `notif_${Date.now()}_${member.userId}`,
@@ -109,15 +142,21 @@
     }
   }
 
-  function cancelMeeting(meet: Meeting) {
-    if (!confirm('Are you sure you want to cancel this review meeting?')) return;
+  function requestCancel(meet: Meeting) {
+    meetingToCancel = meet;
+    cancelDialogOpen = true;
+  }
+
+  function confirmCancel() {
+    const meet = meetingToCancel;
+    if (!meet) return;
     try {
       db.updateMeeting(meet.id, { status: 'cancelled' });
       toast.success('Meeting cancelled.');
-      
-      const proj = projects.find(p => p.id === meet.projectId);
+
+      const proj = projects.find((p) => p.id === meet.projectId);
       if (proj) {
-        proj.members.forEach(member => {
+        proj.members.forEach((member) => {
           db.saveNotifications([
             {
               id: `notif_${Date.now()}_${member.userId}`,
@@ -131,33 +170,32 @@
           ]);
         });
       }
+      cancelDialogOpen = false;
+      meetingToCancel = null;
       loadData();
     } catch (err) {
       toast.error('Failed to cancel meeting');
     }
   }
 
-  function editMeeting(meet: Meeting) {
-    editingMeeting = meet;
-    scheduleProjectId = meet.projectId;
-    meetingTitle = meet.title;
-    meetingDate = meet.date;
-    meetingTime = meet.time;
-    meetingLocation = meet.linkOrLocation;
-    scheduleDialogOpen = true;
-  }
-
   function handleFeedbackSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!feedbackProjectId || !feedbackText) return;
-    const proj = projects.find(p => p.id === feedbackProjectId);
+    const proj = projects.find((p) => p.id === feedbackProjectId);
     if (!proj) return;
 
     try {
       const fb = db.addFeedback(feedbackProjectId, feedbackCategory, feedbackText, auth.user!.name);
-      db.logAudit(auth.user!.id, auth.user!.name, `Added ${feedbackCategory} feedback`, 'feedback', fb.id, proj.name);
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        `Added ${feedbackCategory} feedback`,
+        'feedback',
+        fb.id,
+        proj.name
+      );
 
-      proj.members.forEach(member => {
+      proj.members.forEach((member) => {
         db.saveNotifications([
           {
             id: `notif_${Date.now()}_${member.userId}`,
@@ -180,279 +218,238 @@
       toast.error('Failed to submit feedback');
     }
   }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  /** Soonest first — a scheduler is read in date order, not insertion order. */
+  const sortedMeetings = $derived(
+    [...upcomingMeetings].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
+  );
 </script>
 
+<svelte:head>
+  <title>Review Scheduler — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-      <div class="flex flex-col">
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Review Scheduler & Feedback</h2>
-        <p class="text-sm text-muted-foreground mt-1">Schedule mentor reviews or record categorized quality feedback.</p>
-      </div>
-
-      <div class="flex items-center gap-2">
-        <Button variant="primary" size="sm" onclick={() => { editingMeeting = null; scheduleDialogOpen = true; }}>
+  <div class="flex flex-col gap-6 max-w-5xl">
+    <PageHeader
+      title="Review scheduler"
+      icon={Calendar}
+      description="Book mentor reviews with your teams and record categorised quality feedback against a project."
+    >
+      {#snippet actions()}
+        <Button variant="primary" onclick={openScheduleDialog} disabled={activeProjects.length === 0}>
           <Plus class="w-4 h-4" />
-          Schedule Meeting
+          Schedule meeting
         </Button>
-        <Button variant="outline" size="sm" onclick={() => feedbackDialogOpen = true}>
+        <Button
+          variant="outline"
+          onclick={() => (feedbackDialogOpen = true)}
+          disabled={activeProjects.length === 0}
+        >
           <MessageSquare class="w-4 h-4" />
-          Submit Feedback
+          Add feedback
         </Button>
-      </div>
-    </div>
+      {/snippet}
+    </PageHeader>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- Scheduling Form -->
-      <Card class="flex flex-col gap-4">
-        <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">
-          {editingMeeting ? 'Reschedule Review Meeting' : 'Schedule Review Meeting'}
-        </h3>
-        
-        <form onsubmit={handleScheduleSubmit} class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label for="sch-proj" class="text-xs font-semibold text-foreground">Target Team</label>
-            <select 
-              id="sch-proj"
-              bind:value={scheduleProjectId}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
+    {#if activeProjects.length === 0}
+      <EmptyState
+        icon={Calendar}
+        title="No active teams"
+        description="Meetings and feedback are recorded against approved projects. Approve a proposal to get started."
+      >
+        {#snippet action()}
+          <a href="/dashboard/faculty/approvals">
+            <Button variant="outline" size="sm">Go to approvals</Button>
+          </a>
+        {/snippet}
+      </EmptyState>
+    {:else}
+      <Card title="Scheduled reviews" description="Soonest first.">
+        <ul class="flex flex-col gap-2.5">
+          {#each sortedMeetings as meet (meet.id)}
+            <li
+              class="p-4 border border-border rounded-md flex flex-col sm:flex-row sm:items-center
+                justify-between gap-4 hover:bg-muted/30 transition-colors"
             >
-              {#each activeProjects as p}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label for="sch-title" class="text-xs font-semibold text-foreground">Review Topic / Title</label>
-            <input 
-              id="sch-title"
-              type="text" 
-              placeholder="e.g. Mid-term presentation evaluation" 
-              bind:value={meetingTitle}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label for="sch-date" class="text-xs font-semibold text-foreground">Date</label>
-              <input 
-                id="sch-date"
-                type="date" 
-                bind:value={meetingDate}
-                required
-                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-              />
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-              <label for="sch-time" class="text-xs font-semibold text-foreground">Time</label>
-              <input 
-                id="sch-time"
-                type="time" 
-                bind:value={meetingTime}
-                required
-                class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label for="sch-loc" class="text-xs font-semibold text-foreground">Location / Online Link</label>
-            <input 
-              id="sch-loc"
-              type="text" 
-              placeholder="e.g. Seminar Room 304 or Zoom URL" 
-              bind:value={meetingLocation}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-            />
-          </div>
-
-          <div class="flex justify-end gap-2 mt-2">
-            {#if editingMeeting}
-              <Button type="button" variant="outline" size="sm" onclick={() => { editingMeeting = null; meetingTitle = ''; meetingDate = ''; meetingTime = ''; meetingLocation = ''; }}>Cancel</Button>
-            {/if}
-            <Button type="submit" variant="primary" size="sm">
-              {editingMeeting ? 'Save Meeting' : 'Schedule Meeting'}
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <!-- Scheduled Meetings list -->
-      <div class="lg:col-span-2 flex flex-col gap-6">
-        <Card>
-          <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2 mb-4">Scheduled Mentor Reviews</h3>
-          
-          <div class="flex flex-col gap-3">
-            {#each upcomingMeetings as meet}
-              <div class="p-4 border rounded-md bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
-                <div class="flex flex-col min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-bold text-foreground truncate">{meet.title}</span>
-                    <Badge variant="success">Scheduled</Badge>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-sm font-bold text-foreground">{meet.title}</h3>
+                  {#if meet.date < today}
+                    <Badge variant="secondary" size="sm">Past</Badge>
+                  {:else}
+                    <Badge variant="success" dot size="sm">Scheduled</Badge>
+                  {/if}
+                </div>
+                <p class="text-2xs text-muted-foreground mt-1">{meet.projectName}</p>
+                <dl class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-2xs text-muted-foreground">
+                  <div class="flex items-center gap-1.5">
+                    <dt class="sr-only">When</dt>
+                    <Clock class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    <dd class="tabular">{meet.date} at {meet.time}</dd>
                   </div>
-                  <span class="text-3xs text-muted-foreground font-semibold mt-1">Project: {meet.projectName}</span>
-                  <span class="text-3xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                    <Calendar class="w-3.5 h-3.5" />
-                    {meet.date} at {meet.time}
-                  </span>
-                  <span class="text-3xs text-primary font-bold truncate mt-0.5">Link/Location: {meet.linkOrLocation}</span>
-                </div>
-
-                <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                  <button 
-                    onclick={() => editMeeting(meet)}
-                    class="px-2.5 py-1.5 border rounded-lg hover:bg-secondary text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                  >
-                    Reschedule
-                  </button>
-                  <button 
-                    onclick={() => cancelMeeting(meet)}
-                    class="px-2.5 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive/100 hover:text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                  >
-                    Cancel Meeting
-                  </button>
-                </div>
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <dt class="sr-only">Where</dt>
+                    <MapPin class="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    <dd class="truncate font-semibold text-foreground">{meet.linkOrLocation}</dd>
+                  </div>
+                </dl>
               </div>
-            {:else}
-              <div class="py-8 text-center text-xs text-muted-foreground italic">No review meetings scheduled yet. Use the scheduler on the left to set one.</div>
-            {/each}
-          </div>
-        </Card>
-      </div>
-    </div>
+
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <Button variant="outline" size="sm" onclick={() => editMeeting(meet)}>Reschedule</Button>
+                <Button variant="ghost" size="sm" onclick={() => requestCancel(meet)}>Cancel</Button>
+              </div>
+            </li>
+          {:else}
+            <li>
+              <EmptyState
+                icon={Calendar}
+                title="No reviews scheduled"
+                description="Book a mentor review and every member of that team is notified with the date, time and location."
+              >
+                {#snippet action()}
+                  <Button variant="outline" size="sm" onclick={openScheduleDialog}>Schedule meeting</Button>
+                {/snippet}
+              </EmptyState>
+            </li>
+          {/each}
+        </ul>
+      </Card>
+    {/if}
   </div>
 {/if}
 
-<!-- Dialog Modals -->
-
-<!-- Meeting Scheduler Dialog Overlay -->
-<Dialog bind:open={scheduleDialogOpen} title={editingMeeting ? "Reschedule Review Meeting" : "Schedule Project Review Meeting"}>
-  <form onsubmit={handleScheduleSubmit} class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-sch-proj" class="text-xs font-semibold text-foreground">Target Team</label>
-      <select 
-        id="dlg-sch-proj"
-        bind:value={scheduleProjectId}
-        required
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-      >
-        {#each activeProjects as p}
+<!-- One scheduler dialog serves both booking and rescheduling. -->
+<Dialog
+  bind:open={scheduleDialogOpen}
+  title={editingMeeting ? 'Reschedule review meeting' : 'Schedule review meeting'}
+  description="Every member of the selected team is notified."
+>
+  <form id="schedule-form" onsubmit={handleScheduleSubmit} class="flex flex-col gap-4">
+    <div class="field">
+      <label for="dlg-sch-proj" class="field-label">Team</label>
+      <select id="dlg-sch-proj" bind:value={scheduleProjectId} required class="field-select">
+        {#each activeProjects as p (p.id)}
           <option value={p.id}>{p.name}</option>
         {/each}
       </select>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-sch-title" class="text-xs font-semibold text-foreground">Review Topic / Title</label>
-      <input 
+    <div class="field">
+      <label for="dlg-sch-title" class="field-label">Review topic</label>
+      <input
         id="dlg-sch-title"
-        type="text" 
-        placeholder="e.g. Mid-term presentation evaluation" 
+        type="text"
+        placeholder="e.g. Mid-term presentation evaluation"
         bind:value={meetingTitle}
         required
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+        class="field-input"
       />
     </div>
 
     <div class="grid grid-cols-2 gap-4">
-      <div class="flex flex-col gap-1.5">
-        <label for="dlg-sch-date" class="text-xs font-semibold text-foreground">Date</label>
-        <input 
-          id="dlg-sch-date"
-          type="date" 
-          bind:value={meetingDate}
-          required
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-        />
+      <div class="field">
+        <label for="dlg-sch-date" class="field-label">Date</label>
+        <input id="dlg-sch-date" type="date" bind:value={meetingDate} required class="field-input" />
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="dlg-sch-time" class="text-xs font-semibold text-foreground">Time</label>
-        <input 
-          id="dlg-sch-time"
-          type="time" 
-          bind:value={meetingTime}
-          required
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-        />
+      <div class="field">
+        <label for="dlg-sch-time" class="field-label">Time</label>
+        <input id="dlg-sch-time" type="time" bind:value={meetingTime} required class="field-input" />
       </div>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-sch-loc" class="text-xs font-semibold text-foreground">Location / Online Link</label>
-      <input 
+    <div class="field">
+      <label for="dlg-sch-loc" class="field-label">Location or link</label>
+      <input
         id="dlg-sch-loc"
-        type="text" 
-        placeholder="e.g. Seminar Room 304 or Zoom URL" 
+        type="text"
+        placeholder="e.g. Seminar Room 304, or a Zoom URL"
         bind:value={meetingLocation}
         required
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+        class="field-input"
       />
     </div>
-
-    <div class="flex justify-end gap-2 mt-2">
-      <Button type="button" variant="outline" onclick={() => scheduleDialogOpen = false}>Cancel</Button>
-      <Button type="submit" variant="primary">
-        {editingMeeting ? "Reschedule" : "Schedule"}
-      </Button>
-    </div>
   </form>
+
+  {#snippet footer()}
+    <Button type="button" variant="outline" onclick={() => (scheduleDialogOpen = false)}>Cancel</Button>
+    <Button type="submit" form="schedule-form" variant="primary">
+      {editingMeeting ? 'Save changes' : 'Schedule'}
+    </Button>
+  {/snippet}
 </Dialog>
 
-<!-- Categorized Feedback Dialog Overlay -->
-<Dialog bind:open={feedbackDialogOpen} title="Add Categorized Faculty Feedback">
-  <form onsubmit={handleFeedbackSubmit} class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-fb-proj" class="text-xs font-semibold text-foreground">Target Team</label>
-      <select 
-        id="dlg-fb-proj"
-        bind:value={feedbackProjectId}
-        required
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-      >
-        {#each activeProjects as p}
+<!-- Categorized Feedback Dialog -->
+<Dialog
+  bind:open={feedbackDialogOpen}
+  title="Add categorised feedback"
+  description="Filed against the project and shown on its workspace timeline."
+>
+  <form id="feedback-form" onsubmit={handleFeedbackSubmit} class="flex flex-col gap-4">
+    <div class="field">
+      <label for="dlg-fb-proj" class="field-label">Team</label>
+      <select id="dlg-fb-proj" bind:value={feedbackProjectId} required class="field-select">
+        {#each activeProjects as p (p.id)}
           <option value={p.id}>{p.name}</option>
         {/each}
       </select>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-fb-cat" class="text-xs font-semibold text-foreground">Category</label>
-      <select 
-        id="dlg-fb-cat"
-        bind:value={feedbackCategory}
-        required
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-      >
-        <option value="code">Code Quality & Architecture</option>
-        <option value="documentation">Documentation & Specifications</option>
-        <option value="ui">UI/UX & Responsiveness</option>
-        <option value="testing">Testing, Coverage & Deployment</option>
-        <option value="presentation">Presentation & Communication</option>
+    <div class="field">
+      <label for="dlg-fb-cat" class="field-label">Category</label>
+      <select id="dlg-fb-cat" bind:value={feedbackCategory} required class="field-select">
+        <option value="code">Code quality &amp; architecture</option>
+        <option value="documentation">Documentation &amp; specifications</option>
+        <option value="ui">UI / UX &amp; responsiveness</option>
+        <option value="testing">Testing, coverage &amp; deployment</option>
+        <option value="presentation">Presentation &amp; communication</option>
       </select>
     </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label for="dlg-fb-text" class="text-xs font-semibold text-foreground">Feedback Comments</label>
-      <textarea 
+    <div class="field">
+      <label for="dlg-fb-text" class="field-label">Comments</label>
+      <textarea
         id="dlg-fb-text"
-        placeholder="Provide constructive review comments for this category..." 
+        placeholder="Constructive review comments for this category…"
         bind:value={feedbackText}
         required
         rows="4"
-        class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+        class="field-textarea"
       ></textarea>
     </div>
-
-    <div class="flex justify-end gap-2 mt-2">
-      <Button type="button" variant="outline" onclick={() => feedbackDialogOpen = false}>Cancel</Button>
-      <Button type="submit" variant="primary">Submit Feedback</Button>
-    </div>
   </form>
+
+  {#snippet footer()}
+    <Button type="button" variant="outline" onclick={() => (feedbackDialogOpen = false)}>Cancel</Button>
+    <Button type="submit" form="feedback-form" variant="primary">Submit feedback</Button>
+  {/snippet}
+</Dialog>
+
+<!-- Cancel confirmation -->
+<Dialog
+  bind:open={cancelDialogOpen}
+  size="sm"
+  title="Cancel this review meeting?"
+  onclose={() => (meetingToCancel = null)}
+>
+  <div class="flex gap-3">
+    <AlertTriangle class="w-5 h-5 shrink-0 text-warning mt-0.5" aria-hidden="true" />
+    <p class="text-sm text-muted-foreground leading-relaxed">
+      {#if meetingToCancel}
+        <span class="font-bold text-foreground">{meetingToCancel.title}</span>
+        with {meetingToCancel.projectName} on
+        <span class="tabular">{meetingToCancel.date} at {meetingToCancel.time}</span>
+        will be marked cancelled, and every member of the team will be notified.
+      {/if}
+    </p>
+  </div>
+
+  {#snippet footer()}
+    <Button variant="outline" onclick={() => (cancelDialogOpen = false)}>Keep meeting</Button>
+    <Button variant="danger" onclick={confirmCancel}>Cancel meeting</Button>
+  {/snippet}
 </Dialog>
