@@ -4,15 +4,32 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type User, type Department, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Users as UsersIcon, Building2, FolderKanban, Plus, Trash2, Download, Upload, RotateCcw } from 'lucide-svelte';
+  import {
+    Users as UsersIcon,
+    Building2,
+    FolderKanban,
+    Plus,
+    Trash2,
+    Download,
+    Upload,
+    RotateCcw,
+    Search,
+    AlertTriangle
+  } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import StatCard from '$lib/components/ui/StatCard.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
 
   let users = $state<User[]>([]);
   let departments = $state<Department[]>([]);
   let projects = $state<Project[]>([]);
+  let loaded = $state(false);
 
   let addDeptDialogOpen = $state(false);
   let newDeptName = $state('');
@@ -22,6 +39,10 @@
 
   let resetDialogOpen = $state(false);
   let importFileInput = $state<HTMLInputElement | null>(null);
+
+  /** The account table is the one place an admin hunts for a specific person. */
+  let userSearch = $state('');
+  let roleFilter = $state<'all' | User['role']>('all');
 
   const usersByRole = $derived(
     (['student', 'faculty', 'admin'] as const).map((role) => ({
@@ -39,10 +60,10 @@
   const projectsByStatus = $derived(
     (
       [
-        { status: 'active', label: 'Active', barClass: 'bg-success' },
-        { status: 'pending', label: 'Pending', barClass: 'bg-warning' },
-        { status: 'archived', label: 'Archived', barClass: 'bg-muted-foreground' },
-        { status: 'rejected', label: 'Rejected', barClass: 'bg-destructive/100' }
+        { status: 'active', label: 'Active', tone: 'success' },
+        { status: 'pending', label: 'Pending', tone: 'warning' },
+        { status: 'archived', label: 'Archived', tone: 'neutral' },
+        { status: 'rejected', label: 'Rejected', tone: 'danger' }
       ] as const
     ).map((s) => ({ ...s, count: projects.filter((p) => p.status === s.status).length }))
   );
@@ -53,8 +74,20 @@
     return Math.round((allMilestones.filter((m) => m.completed).length / allMilestones.length) * 100);
   });
 
+  const filteredUsers = $derived(
+    users.filter((u) => {
+      const q = userSearch.toLowerCase();
+      const matchesQuery =
+        !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) ||
+        u.department.toLowerCase().includes(q);
+      const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+      return matchesQuery && matchesRole;
+    })
+  );
+
   onMount(() => {
     loadData();
+    loaded = true;
   });
 
   function loadData() {
@@ -75,11 +108,11 @@
 
   function deleteUser(userId: string) {
     if (userId === auth.user?.id) {
-      toast.error("You cannot delete your own admin account.");
+      toast.error('You cannot delete your own admin account.');
       return;
     }
     try {
-      const all = db.getUsers().filter(u => u.id !== userId);
+      const all = db.getUsers().filter((u) => u.id !== userId);
       db.saveUsers(all);
       toast.success('User account removed');
       loadData();
@@ -153,301 +186,390 @@
       toast.error('Failed to register department');
     }
   }
+
+  const roleTone = { admin: 'danger', faculty: 'primary', student: 'secondary' } as const;
 </script>
 
+<svelte:head>
+  <title>Administration — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-      <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Platform Administration</h2>
-        <p class="text-sm text-muted-foreground mt-1">Supervise accounts, configure academic departments, and manage global settings.</p>
-      </div>
-      <div class="flex gap-2">
-        <Button variant="outline" size="sm" onclick={exportData}>
-          <Download class="w-3.5 h-3.5" />
-          Export Data
+  <div class="flex flex-col gap-7 max-w-7xl">
+    <PageHeader
+      title="Platform administration"
+      description="Accounts, departments and the platform-wide data store."
+    >
+      {#snippet actions()}
+        <Button variant="outline" onclick={exportData}>
+          <Download class="w-4 h-4" />
+          Export
         </Button>
-        <Button variant="outline" size="sm" onclick={triggerImport}>
-          <Upload class="w-3.5 h-3.5" />
-          Import Data
+        <Button variant="outline" onclick={triggerImport}>
+          <Upload class="w-4 h-4" />
+          Import
         </Button>
         <input
           bind:this={importFileInput}
           type="file"
           accept="application/json"
           class="hidden"
+          aria-hidden="true"
+          tabindex="-1"
           onchange={handleImportFile}
         />
-        <Button variant="danger" size="sm" onclick={() => resetDialogOpen = true}>
-          <RotateCcw class="w-3.5 h-3.5" />
-          Reset Demo Data
+        <Button variant="ghost" onclick={() => (resetDialogOpen = true)}>
+          <RotateCcw class="w-4 h-4" />
+          Reset data
         </Button>
-      </div>
-    </div>
+      {/snippet}
+    </PageHeader>
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary">
-          <Building2 class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Registered Accounts</p>
-          <p class="text-2xl font-black text-foreground mt-1">{users.length}</p>
-        </div>
-      </Card>
+    <section aria-label="Platform totals" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <StatCard
+        label="Registered accounts"
+        value={users.length}
+        icon={UsersIcon}
+        tone="accent"
+        hint="{usersByRole[0].count} students · {usersByRole[1].count} faculty"
+      />
+      <StatCard
+        label="Departments"
+        value={departments.length}
+        icon={Building2}
+        tone="info"
+        hint="Available when registering an account"
+      />
+      <StatCard
+        label="Projects"
+        value={projects.length}
+        icon={FolderKanban}
+        tone="success"
+        hint="{platformMilestoneCompletion}% of all milestones complete"
+      />
+    </section>
 
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning">
-          <Building2 class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Academic Departments</p>
-          <p class="text-2xl font-black text-foreground mt-1">{departments.length}</p>
-        </div>
-      </Card>
-
-      <Card class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success">
-          <FolderKanban class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Total Teams Projects</p>
-          <p class="text-2xl font-black text-foreground mt-1">{projects.length}</p>
-        </div>
-      </Card>
-    </div>
-
-    <!-- Platform Analytics -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <Card>
-        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Accounts by Role</h3>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <Card title="Accounts by role">
         <div class="flex flex-col gap-3">
-          {#each usersByRole as r}
-            {@const pct = users.length > 0 ? Math.round((r.count / users.length) * 100) : 0}
-            <div class="flex flex-col gap-1">
-              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
-                <span>{r.label}</span>
-                <span>{r.count}</span>
-              </div>
-              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
-                <div class="h-full bg-primary" style="width: {pct}%"></div>
-              </div>
-            </div>
+          {#each usersByRole as r (r.label)}
+            <ProgressBar
+              value={r.count}
+              max={Math.max(users.length, 1)}
+              label={r.label}
+              valueLabel={String(r.count)}
+              tone="accent"
+              size="sm"
+            />
           {/each}
         </div>
       </Card>
 
-      <Card>
-        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Accounts by Department</h3>
+      <Card title="Accounts by department">
         <div class="flex flex-col gap-3">
-          {#each usersByDepartment as d}
-            {@const pct = users.length > 0 ? Math.round((d.count / users.length) * 100) : 0}
-            <div class="flex flex-col gap-1">
-              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
-                <span title={d.label}>{d.code}</span>
-                <span>{d.count}</span>
-              </div>
-              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
-                <div class="h-full bg-primary" style="width: {pct}%"></div>
-              </div>
-            </div>
+          {#each usersByDepartment as d (d.code)}
+            <ProgressBar
+              value={d.count}
+              max={Math.max(users.length, 1)}
+              label={d.code}
+              valueLabel={String(d.count)}
+              tone="info"
+              size="sm"
+            />
           {:else}
-            <p class="text-2xs text-muted-foreground italic">No departments registered yet.</p>
+            <p class="text-2xs text-muted-foreground">No departments registered yet.</p>
           {/each}
         </div>
       </Card>
 
-      <Card>
-        <h3 class="text-sm font-bold text-foreground border-b border-border/40 pb-3 mb-4">Projects by Status</h3>
+      <Card title="Projects by status">
         <div class="flex flex-col gap-3">
-          {#each projectsByStatus as s}
-            {@const pct = projects.length > 0 ? Math.round((s.count / projects.length) * 100) : 0}
-            <div class="flex flex-col gap-1">
-              <div class="flex justify-between items-center text-2xs font-bold text-muted-foreground">
-                <span>{s.label}</span>
-                <span>{s.count}</span>
-              </div>
-              <div class="w-full h-1.5 bg-secondary rounded-full overflow-hidden border border-border">
-                <div class="h-full {s.barClass}" style="width: {pct}%"></div>
-              </div>
-            </div>
+          {#each projectsByStatus as s (s.status)}
+            <ProgressBar
+              value={s.count}
+              max={Math.max(projects.length, 1)}
+              label={s.label}
+              valueLabel={String(s.count)}
+              tone={s.tone}
+              size="sm"
+            />
           {/each}
         </div>
-        <div class="mt-4 pt-3 border-t border-border/40 flex justify-between items-center">
-          <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Platform Milestone Completion</span>
-          <span class="text-sm font-black text-foreground">{platformMilestoneCompletion}%</span>
+        <div class="mt-4 pt-3 border-t border-border flex justify-between items-baseline gap-3">
+          <span class="eyebrow">Milestone completion</span>
+          <span class="font-display text-lg text-foreground tabular">{platformMilestoneCompletion}%</span>
         </div>
       </Card>
     </div>
 
-    <!-- User Catalog Table -->
-    <div class="flex flex-col gap-4">
-      <h3 class="text-xl font-bold text-foreground">User Database Management</h3>
-      <Card class="p-0 overflow-hidden border border-border">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+    <!-- User accounts -->
+    <Card flush title="User accounts">
+      {#snippet actions()}
+        <div class="relative">
+          <Search
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            aria-hidden="true"
+          />
+          <label for="user-search" class="sr-only">Search accounts</label>
+          <input
+            id="user-search"
+            type="search"
+            placeholder="Search name, email, department"
+            bind:value={userSearch}
+            class="field-input field-icon h-9 w-44 sm:w-64"
+          />
+        </div>
+        <label for="role-filter" class="sr-only">Filter by role</label>
+        <select id="role-filter" bind:value={roleFilter} class="field-select h-9 w-auto text-xs font-semibold">
+          <option value="all">All roles</option>
+          <option value="student">Students</option>
+          <option value="faculty">Faculty</option>
+          <option value="admin">Admins</option>
+        </select>
+      {/snippet}
+
+      {#if !loaded}
+        <div class="p-5 flex flex-col gap-3" aria-busy="true">
+          {#each { length: 4 } as _, i (i)}
+            <div class="skeleton h-10 w-full"></div>
+          {/each}
+        </div>
+      {:else if filteredUsers.length === 0}
+        <div class="p-5">
+          <EmptyState
+            icon={UsersIcon}
+            title={users.length === 0 ? 'No accounts registered' : 'No accounts match'}
+            description={users.length === 0
+              ? 'Accounts appear here as people register on the platform.'
+              : 'Try a different search term, or switch the role filter back to all roles.'}
+            size="sm"
+          />
+        </div>
+      {:else}
+        <div class="table-scroll hidden md:block">
+          <table class="data-table">
+            <caption class="sr-only">Registered platform accounts</caption>
             <thead>
-              <tr class="border-b border-border bg-muted/30 text-3xs font-black uppercase tracking-wider text-muted-foreground">
-                <th class="p-4">Profile</th>
-                <th class="p-4">Role</th>
-                <th class="p-4">Department</th>
-                <th class="p-4 text-right">Actions</th>
+              <tr>
+                <th scope="col">Account</th>
+                <th scope="col">Role</th>
+                <th scope="col">Department</th>
+                <th scope="col" class="text-right">Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-border text-xs">
-              {#each users as u}
-                <tr class="hover:bg-muted/10 transition-colors">
-                  <td class="p-4 flex items-center gap-3">
-                    <img src={u.avatar} alt={u.name} class="w-9 h-9 rounded-md bg-muted" />
-                    <div class="flex flex-col min-w-0">
-                      <span class="font-bold text-foreground truncate">{u.name}</span>
-                      <span class="text-3xs text-muted-foreground truncate">{u.email}</span>
-                    </div>
+            <tbody>
+              {#each filteredUsers as u (u.id)}
+                <tr>
+                  <th scope="row" class="p-4 font-normal">
+                    <span class="flex items-center gap-3">
+                      <Avatar src={u.avatar} name={u.name} size="sm" />
+                      <span class="flex flex-col min-w-0 leading-tight">
+                        <span class="text-sm font-bold text-foreground truncate">{u.name}</span>
+                        <span class="text-2xs text-muted-foreground truncate">{u.email}</span>
+                      </span>
+                    </span>
+                  </th>
+                  <td>
+                    <Badge variant={roleTone[u.role]} size="sm" class="capitalize">{u.role}</Badge>
                   </td>
-                  <td class="p-4">
-                    <Badge variant={u.role === 'admin' ? 'danger' : u.role === 'faculty' ? 'primary' : 'secondary'} class="capitalize">
-                      {u.role}
-                    </Badge>
-                  </td>
-                  <td class="p-4 text-muted-foreground truncate max-w-xs">{u.department}</td>
-                  <td class="p-4 text-right">
-                    <div class="flex justify-end gap-2">
+                  <td class="text-xs text-muted-foreground max-w-xs truncate">{u.department}</td>
+                  <td>
+                    <div class="flex justify-end items-center gap-2">
                       {#if u.role === 'student'}
-                        <button 
-                          onclick={() => changeRole(u.id, 'faculty')}
-                          class="p-1.5 border border-border rounded-lg text-3xs font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all cursor-pointer"
-                        >
-                          Make Faculty
-                        </button>
+                        <Button variant="outline" size="sm" onclick={() => changeRole(u.id, 'faculty')}>
+                          Make faculty
+                        </Button>
                       {:else if u.role === 'faculty'}
-                        <button 
-                          onclick={() => changeRole(u.id, 'student')}
-                          class="p-1.5 border border-border rounded-lg text-3xs font-semibold text-muted-foreground hover:text-primary hover:border-primary/30 transition-all cursor-pointer"
-                        >
-                          Make Student
-                        </button>
+                        <Button variant="outline" size="sm" onclick={() => changeRole(u.id, 'student')}>
+                          Make student
+                        </Button>
                       {/if}
 
-                      <button 
+                      <button
                         onclick={() => deleteUser(u.id)}
                         disabled={u.id === auth.user?.id}
-                        class="p-1.5 border border-destructive/10 text-destructive hover:bg-destructive/100 hover:text-white rounded-lg transition-all cursor-pointer disabled:opacity-30"
+                        class="icon-action icon-action-danger"
+                        aria-label="Delete account: {u.name}"
+                        title={u.id === auth.user?.id ? 'You cannot delete your own account' : 'Delete account'}
                       >
-                        <Trash2 class="w-3.5 h-3.5" />
+                        <Trash2 class="w-4 h-4" />
                       </button>
                     </div>
                   </td>
-                </tr>
-              {:else}
-                <tr>
-                  <td colspan="4" class="py-8 text-center text-xs text-muted-foreground italic">No user accounts registered yet.</td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
-      </Card>
-    </div>
 
-    <!-- Department Catalogue -->
-    <div class="flex flex-col gap-4">
-      <div class="flex justify-between items-center">
-        <h3 class="text-xl font-bold text-foreground">Department Catalogue</h3>
-        <Button variant="primary" size="sm" onclick={() => addDeptDialogOpen = true}>
-          <Plus class="w-3.5 h-3.5" />
-          Add Department
-        </Button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {#each departments as d}
-          <Card hoverable class="p-6 flex flex-col justify-between h-48 text-left">
-            <div>
-              <div class="flex justify-between items-start gap-4">
-                <span class="font-extrabold text-foreground text-lg truncate">{d.name}</span>
-                <Badge variant="outline">{d.code}</Badge>
+        <!-- Mobile: the same accounts and the same actions, stacked. -->
+        <ul class="md:hidden divide-y divide-border">
+          {#each filteredUsers as u (u.id)}
+            <li class="p-4">
+              <div class="flex items-start gap-3">
+                <Avatar src={u.avatar} name={u.name} size="sm" />
+                <div class="min-w-0 flex-1 leading-tight">
+                  <p class="text-sm font-bold text-foreground truncate">{u.name}</p>
+                  <p class="text-2xs text-muted-foreground truncate">{u.email}</p>
+                  <div class="flex items-center gap-1.5 mt-1.5">
+                    <Badge variant={roleTone[u.role]} size="sm" class="capitalize">{u.role}</Badge>
+                    <span class="text-2xs text-muted-foreground truncate">{u.department}</span>
+                  </div>
+                </div>
               </div>
-              <p class="text-xs text-muted-foreground mt-2 line-clamp-3 leading-relaxed">{d.description}</p>
+
+              <div class="flex items-center gap-2 mt-3">
+                {#if u.role === 'student'}
+                  <Button variant="outline" size="sm" onclick={() => changeRole(u.id, 'faculty')}>
+                    Make faculty
+                  </Button>
+                {:else if u.role === 'faculty'}
+                  <Button variant="outline" size="sm" onclick={() => changeRole(u.id, 'student')}>
+                    Make student
+                  </Button>
+                {/if}
+                <button
+                  onclick={() => deleteUser(u.id)}
+                  disabled={u.id === auth.user?.id}
+                  class="icon-action icon-action-danger ml-auto"
+                  aria-label="Delete account: {u.name}"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </Card>
+
+    <!-- Departments -->
+    <Card title="Departments">
+      {#snippet actions()}
+        <Button variant="primary" size="sm" onclick={() => (addDeptDialogOpen = true)}>
+          <Plus class="w-3.5 h-3.5" />
+          Add department
+        </Button>
+      {/snippet}
+
+      <ul class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {#each departments as d (d.id)}
+          <li class="p-4 border border-border rounded-md flex flex-col">
+            <div class="flex justify-between items-start gap-3">
+              <h3 class="text-sm font-bold text-foreground min-w-0">{d.name}</h3>
+              <Badge variant="outline" size="sm" class="shrink-0 font-mono">{d.code}</Badge>
             </div>
-            <div class="mt-4 pt-3 border-t border-border text-3xs font-bold text-muted-foreground uppercase tracking-widest">
-              Head: {d.headName}
-            </div>
-          </Card>
+            <p class="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">{d.description}</p>
+            <p class="text-2xs text-muted-foreground mt-auto pt-3">
+              Head: <span class="font-semibold text-foreground">{d.headName}</span>
+              · <span class="tabular">{users.filter((u) => u.department === d.name).length}</span> account(s)
+            </p>
+          </li>
         {:else}
-          <div class="md:col-span-2 py-8 text-center text-xs text-muted-foreground italic border border-dashed rounded-lg">
-            No academic departments registered yet. Use "Add Department" to create one.
-          </div>
+          <li class="md:col-span-2">
+            <EmptyState
+              icon={Building2}
+              title="No departments registered"
+              description="Departments populate the sign-up form and scope faculty supervision. Add the first one to get started."
+              size="sm"
+            >
+              {#snippet action()}
+                <Button variant="outline" size="sm" onclick={() => (addDeptDialogOpen = true)}>
+                  Add department
+                </Button>
+              {/snippet}
+            </EmptyState>
+          </li>
         {/each}
-      </div>
-    </div>
+      </ul>
+    </Card>
   </div>
 
-  <Dialog bind:open={addDeptDialogOpen} title="Register Academic Department">
-    <form onsubmit={handleCreateDept} class="flex flex-col gap-4">
+  <Dialog bind:open={addDeptDialogOpen} title="Register department">
+    <form id="dept-form" onsubmit={handleCreateDept} class="flex flex-col gap-4">
       <div class="grid grid-cols-3 gap-4">
-        <div class="col-span-2 flex flex-col gap-1.5">
-          <label for="d-name" class="text-xs font-semibold text-foreground">Department Name</label>
-          <input 
+        <div class="field col-span-2">
+          <label for="d-name" class="field-label">Department name</label>
+          <input
             id="d-name"
-            type="text" 
-            placeholder="e.g. Mechanical Engineering" 
-            bind:value={newDeptName} 
+            type="text"
+            placeholder="e.g. Mechanical Engineering"
+            bind:value={newDeptName}
             required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+            class="field-input"
           />
         </div>
-        <div class="flex flex-col gap-1.5">
-          <label for="d-code" class="text-xs font-semibold text-foreground">Code</label>
-          <input 
+        <div class="field">
+          <label for="d-code" class="field-label">Code</label>
+          <input
             id="d-code"
-            type="text" 
-            placeholder="e.g. ME" 
-            bind:value={newDeptCode} 
+            type="text"
+            placeholder="e.g. ME"
+            bind:value={newDeptCode}
             required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+            class="field-input uppercase"
           />
         </div>
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="d-head" class="text-xs font-semibold text-foreground">Department Head</label>
-        <input 
+      <div class="field">
+        <label for="d-head" class="field-label">Department head</label>
+        <input
           id="d-head"
-          type="text" 
-          placeholder="e.g. Dr. Arthur Pendelton" 
-          bind:value={newDeptHead} 
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+          type="text"
+          placeholder="e.g. Dr. Arthur Pendelton"
+          bind:value={newDeptHead}
+          aria-describedby="d-head-hint"
+          class="field-input"
         />
+        <p id="d-head-hint" class="field-hint">Optional — recorded as "Unassigned" if left blank.</p>
       </div>
 
-      <div class="flex flex-col gap-1.5">
-        <label for="d-desc" class="text-xs font-semibold text-foreground">Brief Description</label>
-        <textarea 
+      <div class="field">
+        <label for="d-desc" class="field-label">Description</label>
+        <textarea
           id="d-desc"
-          placeholder="Department objectives..." 
-          bind:value={newDeptDesc} 
+          placeholder="Department objectives…"
+          bind:value={newDeptDesc}
           rows="3"
-          class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+          class="field-textarea"
         ></textarea>
       </div>
-
-      <div class="flex justify-end gap-2 mt-2">
-        <Button type="button" variant="outline" onclick={() => addDeptDialogOpen = false}>Cancel</Button>
-        <Button type="submit" variant="primary">Register Dept</Button>
-      </div>
     </form>
+
+    {#snippet footer()}
+      <Button type="button" variant="outline" onclick={() => (addDeptDialogOpen = false)}>Cancel</Button>
+      <Button type="submit" form="dept-form" variant="primary">Register department</Button>
+    {/snippet}
   </Dialog>
 
-  <Dialog bind:open={resetDialogOpen} title="Reset Demo Data">
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      This clears every locally stored account, project, task, and message in this browser and
-      re-seeds the built-in demo data. This cannot be undone — export a backup first if you want
-      to keep the current state. You'll be signed out afterward.
-    </p>
+  <Dialog bind:open={resetDialogOpen} title="Reset all data?">
+    <div class="flex gap-3">
+      <AlertTriangle class="w-5 h-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
+      <div class="text-sm text-muted-foreground leading-relaxed">
+        <p>
+          This clears every account, project, task and message stored in this browser and re-seeds the
+          built-in demo data.
+        </p>
+        <p class="mt-2">
+          It cannot be undone, and you will be signed out. Export a backup first if you want to keep the
+          current state.
+        </p>
+      </div>
+    </div>
+
     {#snippet footer()}
-      <Button variant="outline" onclick={() => resetDialogOpen = false}>Cancel</Button>
-      <Button variant="danger" onclick={confirmReset}>Reset Everything</Button>
+      <Button variant="outline" onclick={() => (resetDialogOpen = false)}>Cancel</Button>
+      <Button
+        variant="outline"
+        onclick={() => {
+          exportData();
+        }}
+      >
+        <Download class="w-3.5 h-3.5" />
+        Export first
+      </Button>
+      <Button variant="danger" onclick={confirmReset}>Reset everything</Button>
     {/snippet}
   </Dialog>
 {/if}

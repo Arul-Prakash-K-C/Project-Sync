@@ -2,10 +2,24 @@
 
 @import "tailwindcss";
 
+/* Theme is toggled by a `.dark` class on <html>, not by the OS preference
+   alone, so `dark:` utilities have to follow that class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: 'Public Sans', system-ui, -apple-system, sans-serif;
   --font-display: 'Archivo', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Type scale. `text-3xs`/`text-2xs` are used heavily for metadata rows and
+     eyebrow labels; without these tokens those utilities emit nothing at all
+     and the text silently inherits its parent size. */
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.9375rem;
+  --text-3xs--letter-spacing: 0.01em;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.005em;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -32,19 +46,24 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface: var(--surface);
 
   --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 3px);
-  --radius-sm: calc(var(--radius) - 5px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 
-  --animate-gradient: gradient 8s linear infinite;
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
 
-  --shadow-elevated: 0 1px 2px rgba(18, 21, 28, 0.04), 0 8px 24px -12px rgba(18, 21, 28, 0.14), inset 0px 1px 1px 0px rgba(255, 255, 255, 0.4);
+  /* One elevation ramp, used everywhere. e1 = resting card, e2 = raised or
+     hovered, e3 = overlays that float above the page. */
+  --shadow-e1: 0 1px 2px rgba(18, 21, 28, 0.05);
+  --shadow-e2: 0 1px 2px rgba(18, 21, 28, 0.04), 0 6px 16px -10px rgba(18, 21, 28, 0.18);
+  --shadow-e3: 0 2px 4px rgba(18, 21, 28, 0.06), 0 16px 40px -16px rgba(18, 21, 28, 0.28);
 
-  @keyframes gradient {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
+  @keyframes shimmer {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
   }
 }
 
@@ -52,10 +71,17 @@
   "Drafting & Forge" — a cool, structured blueprint neutral carries everyday
   scanning work (tables, boards, forms); a single warm ember accent (copper in
   light, brighter like a live coal in dark) is spent only on action and state.
+
+  Role split the whole app follows:
+    accent   → anything interactive or brand-emphatic: links, active nav,
+               primary buttons, focus rings, progress fill, selected chips
+    primary  → high-contrast ink; solid neutral surfaces and headings
+    success / warning / destructive / info → state only, never decoration
 */
 :root {
   --background: #F5F6F8;
   --foreground: #12151C;
+  --surface: #FFFFFF;
   --card: #FFFFFF;
   --card-foreground: #12151C;
   --popover: #FFFFFF;
@@ -65,26 +91,27 @@
   --secondary: #EBEEF2;
   --secondary-foreground: #12151C;
   --muted: #EBEEF2;
-  --muted-foreground: #5B6472;
-  --accent: #B4501F;
+  --muted-foreground: #58606E;
+  --accent: #A8481B;
   --accent-foreground: #FFFFFF;
-  --destructive: #B23A2E;
+  --destructive: #A93529;
   --destructive-foreground: #FFFFFF;
-  --success: #2F7D5D;
+  --success: #2A6E52;
   --success-foreground: #FFFFFF;
-  --warning: #96721E;
+  --warning: #855F13;
   --warning-foreground: #FFFFFF;
-  --info: #3E5878;
+  --info: #3A5171;
   --info-foreground: #FFFFFF;
   --border: #DEE2E8;
   --input: #DEE2E8;
-  --ring: #B4501F;
+  --ring: #A8481B;
   --radius: 0.5rem;
 }
 
 .dark {
   --background: #0A0D12;
   --foreground: #EDEFF3;
+  --surface: #0F1218;
   --card: #12151C;
   --card-foreground: #EDEFF3;
   --popover: #12151C;
@@ -94,123 +121,359 @@
   --secondary: #191D26;
   --secondary-foreground: #EDEFF3;
   --muted: #191D26;
-  --muted-foreground: #8D96A6;
-  --accent: #E2793D;
+  --muted-foreground: #98A1B0;
+  --accent: #E88A50;
   --accent-foreground: #14100A;
-  --destructive: #E06455;
+  --destructive: #E8776A;
   --destructive-foreground: #14100A;
-  --success: #4FAE84;
+  --success: #5FBE93;
   --success-foreground: #0A130E;
-  --warning: #D1A544;
+  --warning: #DDB25A;
   --warning-foreground: #14100A;
-  --info: #7C93B5;
+  --info: #8FA5C6;
   --info-foreground: #0B121C;
   --border: #262B35;
   --input: #262B35;
-  --ring: #E2793D;
+  --ring: #E88A50;
+
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-e2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -10px rgba(0, 0, 0, 0.7);
+  --shadow-e3: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.85);
 }
 
-* {
-  border-color: var(--border);
-  font-family: var(--font-sans);
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--background);
+    color: var(--foreground);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Form controls share one resting look regardless of which utility classes a
+     given page happens to carry, so a field cannot drift off-system. */
+  input:where(:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range'])),
+  select,
+  textarea {
+    background-color: var(--surface);
+    color: var(--foreground);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  input:where(:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range'])):hover:not(:disabled),
+  select:hover:not(:disabled),
+  textarea:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--input));
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.8;
+  }
+
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  /* Checkboxes, radios and ranges inherit the accent so selection reads as the
+     app's action colour instead of the browser default blue. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--accent);
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+  }
+
+  input[type='range'] {
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+    border-radius: 6px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    background-clip: padding-box;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  transition: background-color 0.3s ease, color 0.3s ease;
-  overflow-x: hidden;
+@layer components {
+  /*
+    Form field kit. Every text input, select and textarea in the app resolves to
+    one of these classes, so label, height, padding and focus are defined once.
+  */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .field-label {
+    font-size: var(--text-xs);
+    line-height: 1rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .field-hint {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    color: var(--muted-foreground);
+  }
+
+  .field-input,
+  .field-select {
+    width: 100%;
+    height: 2.5rem;
+    padding-inline: 0.75rem;
+    font-size: var(--text-sm);
+    line-height: 1.25rem;
+  }
+
+  .field-select {
+    padding-inline-end: 0.5rem;
+    cursor: pointer;
+  }
+
+  .field-textarea {
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 5rem;
+  }
+
+  /* Leading-icon inputs: the icon is absolutely placed by the markup, the field
+     just reserves room for it. */
+  .field-icon {
+    padding-inline-start: 2.375rem;
+  }
+
+  .field-sm {
+    height: 2.25rem;
+  }
+
+  /*
+    Data tables carry real density, so they get their own rules rather than a
+    per-cell utility pile-up that drifts between pages.
+  */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+
+  .data-table thead th {
+    background: color-mix(in srgb, var(--muted) 60%, var(--card));
+    padding: 0.625rem 1rem;
+    font-size: var(--text-3xs);
+    line-height: var(--text-3xs--line-height);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table tbody td {
+    padding: 0.75rem 1rem;
+    font-size: var(--text-sm);
+    vertical-align: middle;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  }
+
+  .data-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .data-table tbody tr {
+    transition: background-color 0.12s ease;
+  }
+
+  .data-table tbody tr:hover {
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+
+  /* Horizontal overflow is contained by the table's own scroller so the page
+     body never scrolls sideways on small screens. */
+  .table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Compact icon-only control for row actions and toolbars. Sized to stay a
+     comfortable touch target. */
+  .icon-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+    background: transparent;
+    cursor: pointer;
+    transition: color 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+  }
+
+  .icon-action:hover:not(:disabled) {
+    color: var(--foreground);
+    background: var(--secondary);
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  .icon-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .icon-action-danger {
+    color: var(--destructive);
+    border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+  }
+
+  .icon-action-danger:hover:not(:disabled) {
+    color: var(--destructive-foreground);
+    background: var(--destructive);
+    border-color: var(--destructive);
+  }
+
+  /* Eyebrow label above a figure or section — small, uppercase, tracked out. */
+  .eyebrow {
+    font-size: var(--text-3xs);
+    line-height: var(--text-3xs--line-height);
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+
+  /* Skeleton block for loading states. */
+  .skeleton {
+    background: color-mix(in srgb, var(--muted-foreground) 16%, transparent);
+    border-radius: var(--radius-sm);
+    animation: var(--animate-shimmer);
+  }
 }
 
-/* Premium Scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--muted);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+/*
+  A single visible focus treatment for the whole app.
+
+  Deliberately unlayered: rules inside `@layer base` lose to every Tailwind
+  utility, and a stray `shadow-*` on a control would silently erase the ring.
+  It is painted with box-shadow rather than outline because much of the markup
+  carries `focus:outline-none`, which a shadow survives — so a keyboard user
+  never loses their place.
+*/
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--ring);
 }
 
 /* Display + mono font utilities */
 .font-display {
-  font-family: var(--font-display) !important;
+  font-family: var(--font-display);
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 .font-mono {
-  font-family: var(--font-mono) !important;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* Chamfered corner — the one shape flourish, used sparingly (wordmark, hero cards) */
+/* Figures that get compared column-to-column line up on the decimal. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chamfered corner — the one shape flourish, reserved for the wordmark. */
 .chamfer {
   clip-path: polygon(18% 0, 100% 0, 100% 82%, 82% 100%, 0 100%, 0 18%);
 }
 
-/* Gradient border shell */
-.gradient-shell {
-  display: inline-block;
-  padding: 1px;
-  border-radius: var(--radius);
-  background: linear-gradient(120deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--info)));
-  box-shadow: var(--shadow-elevated);
-}
-
-.gradient-shell-inner {
-  padding: 18px 20px;
-  border-radius: calc(var(--radius) - 1px);
-  background: var(--card);
-  box-shadow: none;
-  box-sizing: border-box;
-}
-
-/* Glassmorphism Classes */
-.glass {
-  background: color-mix(in srgb, var(--card) 55%, transparent);
+/* Translucent sticky chrome, used only where content genuinely scrolls
+   underneath — the app header and sidebar — never as a card treatment. */
+.chrome-blur {
+  background-color: color-mix(in srgb, var(--background) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
-.glass-card {
-  background: color-mix(in srgb, var(--card) 65%, transparent);
-  backdrop-filter: blur(8px);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  box-shadow: 0 8px 32px 0 rgba(18, 21, 28, 0.04);
+@supports not ((backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px))) {
+  .chrome-blur {
+    background-color: var(--background);
+  }
 }
 
-.dark .glass-card {
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-}
-
-/* Ensure headers and sidebars display correct transparent background according to active theme */
-header {
-  background-color: color-mix(in srgb, var(--background) 78%, transparent) !important;
-  border-color: color-mix(in srgb, var(--border) 50%, transparent) !important;
-}
-
-aside {
-  background-color: color-mix(in srgb, var(--background) 82%, transparent) !important;
-  border-color: color-mix(in srgb, var(--border) 50%, transparent) !important;
-}
-
-/* Blueprint grid — drafting-table backdrop, used only in editorial moments */
+/* Blueprint grid — drafting-table backdrop, used only in editorial moments. */
 .bg-grid {
   background-size: 36px 36px;
   background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
-}
-.dark .bg-grid {
-  background-image:
     linear-gradient(to right, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 5%, transparent) 1px, transparent 1px);
+}
+
+/* Card copy truncation. */
+.line-clamp-1,
+.line-clamp-2,
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-1 { -webkit-line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

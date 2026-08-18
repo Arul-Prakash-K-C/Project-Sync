@@ -3,20 +3,14 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type Milestone } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { 
-    Calendar, 
-    Plus, 
-    Trash2, 
-    Edit3, 
-    Lock, 
-    Unlock, 
-    Clock, 
-    CheckCircle2, 
-    Circle 
-  } from 'lucide-svelte';
+  import { Calendar, Trash2, Pencil, Lock, Unlock, Clock, CheckCircle2, Circle } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Dialog from '$lib/components/ui/Dialog.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
 
   let projects = $state<Project[]>([]);
   let selectedMilestoneProjectId = $state('');
@@ -24,33 +18,52 @@
   let milestoneDeadline = $state('');
   let editingMilestoneId = $state<string | null>(null);
 
+  /** Extending a deadline used to go through `window.prompt`, which is
+      unstyled, unlabelled, and impossible to validate as a date. */
+  let extendDialogOpen = $state(false);
+  let extendTarget = $state<{ projId: string; milestone: Milestone } | null>(null);
+  let extendDeadline = $state('');
+
+  const today = new Date().toISOString().split('T')[0];
+
   onMount(() => {
     loadData();
   });
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter(p => p.department === auth.user!.department);
-      const activeP = projects.filter(p => p.status === 'active');
+      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      const activeP = projects.filter((p) => p.status === 'active');
       if (activeP.length > 0 && !selectedMilestoneProjectId) {
         selectedMilestoneProjectId = activeP[0].id;
       }
     }
   }
 
-  let activeProjects = $derived(projects.filter(p => p.status === 'active'));
+  let activeProjects = $derived(projects.filter((p) => p.status === 'active'));
+  let activeProj = $derived(projects.find((p) => p.id === selectedMilestoneProjectId));
+  let completedCount = $derived(activeProj ? activeProj.milestones.filter((m) => m.completed).length : 0);
 
   function handleMilestoneSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!selectedMilestoneProjectId) return;
-    const proj = projects.find(p => p.id === selectedMilestoneProjectId);
+    const proj = projects.find((p) => p.id === selectedMilestoneProjectId);
     if (!proj) return;
 
     try {
       if (editingMilestoneId) {
-        const updated = proj.milestones.map(m => m.id === editingMilestoneId ? { ...m, title: milestoneTitle, deadline: milestoneDeadline } : m);
+        const updated = proj.milestones.map((m) =>
+          m.id === editingMilestoneId ? { ...m, title: milestoneTitle, deadline: milestoneDeadline } : m
+        );
         db.updateProject(proj.id, { milestones: updated });
-        db.logAudit(auth.user!.id, auth.user!.name, 'Updated milestone', 'milestone', editingMilestoneId, `${milestoneTitle} (${proj.name})`);
+        db.logAudit(
+          auth.user!.id,
+          auth.user!.name,
+          'Updated milestone',
+          'milestone',
+          editingMilestoneId,
+          `${milestoneTitle} (${proj.name})`
+        );
         toast.success('Milestone updated successfully');
         editingMilestoneId = null;
       } else {
@@ -62,9 +75,16 @@
           locked: false
         };
         db.updateProject(proj.id, { milestones: [...proj.milestones, newM] });
-        db.logAudit(auth.user!.id, auth.user!.name, 'Created milestone', 'milestone', newM.id, `${milestoneTitle} (${proj.name})`);
+        db.logAudit(
+          auth.user!.id,
+          auth.user!.name,
+          'Created milestone',
+          'milestone',
+          newM.id,
+          `${milestoneTitle} (${proj.name})`
+        );
 
-        proj.members.forEach(member => {
+        proj.members.forEach((member) => {
           db.saveNotifications([
             {
               id: `notif_${Date.now()}_${member.userId}`,
@@ -89,14 +109,27 @@
     }
   }
 
+  function cancelEdit() {
+    editingMilestoneId = null;
+    milestoneTitle = '';
+    milestoneDeadline = '';
+  }
+
   function deleteMilestone(projId: string, mId: string) {
-    const proj = projects.find(p => p.id === projId);
+    const proj = projects.find((p) => p.id === projId);
     if (!proj) return;
     try {
-      const deleted = proj.milestones.find(m => m.id === mId);
-      const updated = proj.milestones.filter(m => m.id !== mId);
+      const deleted = proj.milestones.find((m) => m.id === mId);
+      const updated = proj.milestones.filter((m) => m.id !== mId);
       db.updateProject(proj.id, { milestones: updated });
-      db.logAudit(auth.user!.id, auth.user!.name, 'Deleted milestone', 'milestone', mId, `${deleted?.title ?? mId} (${proj.name})`);
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        'Deleted milestone',
+        'milestone',
+        mId,
+        `${deleted?.title ?? mId} (${proj.name})`
+      );
       toast.success('Milestone deleted');
       loadData();
     } catch (err) {
@@ -105,12 +138,12 @@
   }
 
   function toggleLockMilestone(projId: string, mId: string) {
-    const proj = projects.find(p => p.id === projId);
+    const proj = projects.find((p) => p.id === projId);
     if (!proj) return;
     try {
-      const target = proj.milestones.find(m => m.id === mId);
+      const target = proj.milestones.find((m) => m.id === mId);
       const nowLocked = !target?.locked;
-      const updated = proj.milestones.map(m => m.id === mId ? { ...m, locked: nowLocked } : m);
+      const updated = proj.milestones.map((m) => (m.id === mId ? { ...m, locked: nowLocked } : m));
       db.updateProject(proj.id, { milestones: updated });
       db.logAudit(
         auth.user!.id,
@@ -127,190 +160,295 @@
     }
   }
 
-  function extendMilestone(projId: string, mId: string) {
-    const proj = projects.find(p => p.id === projId);
-    const milestone = proj?.milestones.find(m => m.id === mId);
-    if (!proj || !milestone) return;
-    
-    const newDeadline = prompt('Enter extended deadline date (YYYY-MM-DD):', milestone.deadline);
-    if (newDeadline) {
-      try {
-        const updated = proj.milestones.map(m => m.id === mId ? { ...m, deadline: newDeadline, extendedDeadline: newDeadline } : m);
-        db.updateProject(proj.id, { milestones: updated });
-        db.logAudit(auth.user!.id, auth.user!.name, 'Extended milestone deadline', 'milestone', mId, `${milestone.title} (${proj.name}) → ${newDeadline}`);
+  function openExtendDialog(projId: string, milestone: Milestone) {
+    extendTarget = { projId, milestone };
+    extendDeadline = milestone.deadline;
+    extendDialogOpen = true;
+  }
 
-        proj.members.forEach(member => {
-          db.saveNotifications([
-            {
-              id: `notif_${Date.now()}_${member.userId}`,
-              userId: member.userId,
-              title: 'Milestone Deadline Extended',
-              description: `Deadline for "${milestone.title}" has been updated to ${newDeadline}.`,
-              type: 'project',
-              read: false,
-              createdAt: new Date().toISOString(),
-              actionUrl: `/dashboard/student/project/${proj.id}`
-            }
-          ]);
-        });
+  function submitExtend(e: SubmitEvent) {
+    e.preventDefault();
+    if (!extendTarget || !extendDeadline) return;
+    const { projId, milestone } = extendTarget;
+    const proj = projects.find((p) => p.id === projId);
+    if (!proj) return;
 
-        toast.success('Milestone deadline extended');
-        loadData();
-      } catch (err) {
-        toast.error('Failed to extend milestone');
-      }
+    try {
+      const updated = proj.milestones.map((m) =>
+        m.id === milestone.id ? { ...m, deadline: extendDeadline, extendedDeadline: extendDeadline } : m
+      );
+      db.updateProject(proj.id, { milestones: updated });
+      db.logAudit(
+        auth.user!.id,
+        auth.user!.name,
+        'Extended milestone deadline',
+        'milestone',
+        milestone.id,
+        `${milestone.title} (${proj.name}) → ${extendDeadline}`
+      );
+
+      proj.members.forEach((member) => {
+        db.saveNotifications([
+          {
+            id: `notif_${Date.now()}_${member.userId}`,
+            userId: member.userId,
+            title: 'Milestone Deadline Extended',
+            description: `Deadline for "${milestone.title}" has been updated to ${extendDeadline}.`,
+            type: 'project',
+            read: false,
+            createdAt: new Date().toISOString(),
+            actionUrl: `/dashboard/student/project/${proj.id}`
+          }
+        ]);
+      });
+
+      toast.success('Milestone deadline extended');
+      extendDialogOpen = false;
+      extendTarget = null;
+      loadData();
+    } catch (err) {
+      toast.error('Failed to extend milestone');
     }
   }
 </script>
 
+<svelte:head>
+  <title>Milestones — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    <div class="flex flex-col border-b border-border/40 pb-4">
-      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Milestones Management</h2>
-      <p class="text-sm text-muted-foreground mt-1">Assign deliverables, extend deadlines, or lock milestones for active teams.</p>
-    </div>
+  <div class="flex flex-col gap-6 max-w-7xl">
+    <PageHeader
+      title="Milestones"
+      icon={Calendar}
+      description="Assign deliverables, extend deadlines, or lock a milestone so the team can no longer change it."
+    />
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- Milestone definition card -->
-      <Card class="flex flex-col gap-4">
-        <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">
-          {editingMilestoneId ? 'Edit Milestone Details' : 'Create New Milestone'}
-        </h3>
-        
-        <form onsubmit={handleMilestoneSubmit} class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <label for="mil-proj" class="text-xs font-semibold text-foreground">Select Project Team</label>
-            <select 
-              id="mil-proj"
-              bind:value={selectedMilestoneProjectId}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-            >
-              {#each activeProjects as p}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label for="mil-title" class="text-xs font-semibold text-foreground">Milestone Title</label>
-            <input 
-              id="mil-title"
-              type="text" 
-              placeholder="e.g. Setup API Endpoints" 
-              bind:value={milestoneTitle}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-            />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label for="mil-deadline" class="text-xs font-semibold text-foreground">Target Deadline</label>
-            <input 
-              id="mil-deadline"
-              type="date" 
-              bind:value={milestoneDeadline}
-              required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
-            />
-          </div>
-
-          <div class="flex justify-end gap-2 mt-2">
-            {#if editingMilestoneId}
-              <Button type="button" variant="outline" size="sm" onclick={() => { editingMilestoneId = null; milestoneTitle = ''; milestoneDeadline = ''; }}>Cancel</Button>
-            {/if}
-              <Button type="submit" variant="primary" size="sm">
-                {editingMilestoneId ? 'Save Changes' : 'Assign Milestone'}
-              </Button>
-          </div>
-        </form>
-      </Card>
-
-      <!-- Milestones List -->
-      <div class="lg:col-span-2 flex flex-col gap-6">
-        <Card>
-          <div class="flex justify-between items-center border-b border-border/40 pb-2 mb-4">
-            <h3 class="text-lg font-bold text-foreground">Assigned Milestones Checklist</h3>
-            <select 
-              bind:value={selectedMilestoneProjectId}
-              class="px-3 py-1.5 rounded-md border border-border bg-background text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
-              aria-label="Filter milestones by project"
-            >
-              {#each activeProjects as p}
-                <option value={p.id}>{p.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          {@const activeProj = projects.find(p => p.id === selectedMilestoneProjectId)}
-          {#if activeProj}
-            <div class="flex flex-col gap-3">
-              {#each activeProj.milestones as m}
-                <div class="p-4 border rounded-md bg-card flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-primary/20 transition-all">
-                  <div class="flex items-center gap-3">
-                    {#if m.completed}
-                      <CheckCircle2 class="w-5 h-5 text-success fill-success/10 shrink-0" />
-                    {:else}
-                      <Circle class="w-5 h-5 text-muted-foreground shrink-0" />
-                    {/if}
-                    <div class="flex flex-col">
-                      <span class="text-sm font-bold text-foreground {m.completed ? 'line-through text-muted-foreground' : ''}">
-                        {m.title}
-                      </span>
-                      <span class="text-3xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <Calendar class="w-3.5 h-3.5" />
-                        Deadline: {m.deadline} {m.extendedDeadline ? '(Extended)' : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
-                    <button 
-                      onclick={() => toggleLockMilestone(activeProj.id, m.id)}
-                      class="p-2 border rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                      title={m.locked ? 'Unlock Milestone' : 'Lock Milestone'}
-                    >
-                      {#if m.locked}
-                        <Lock class="w-3.5 h-3.5 text-destructive" />
-                      {:else}
-                        <Unlock class="w-3.5 h-3.5" />
-                      {/if}
-                    </button>
-
-                    <button 
-                      onclick={() => extendMilestone(activeProj.id, m.id)}
-                      class="p-2 border rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                      title="Extend Milestone Deadline"
-                    >
-                      <Clock class="w-3.5 h-3.5" />
-                    </button>
-
-                    <button 
-                      onclick={() => { editingMilestoneId = m.id; milestoneTitle = m.title; milestoneDeadline = m.deadline; }}
-                      class="p-2 border rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                      title="Edit Milestone"
-                    >
-                      <Edit3 class="w-3.5 h-3.5" />
-                    </button>
-
-                    <button 
-                      onclick={() => deleteMilestone(activeProj.id, m.id)}
-                      class="p-2 border rounded-lg hover:bg-destructive/10 text-destructive cursor-pointer transition-colors"
-                      title="Delete Milestone"
-                    >
-                      <Trash2 class="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              {:else}
-                <div class="py-8 text-center text-xs text-muted-foreground italic">No milestones defined for this project. Use the form on the left to add one.</div>
-              {/each}
+    {#if activeProjects.length === 0}
+      <EmptyState
+        icon={Calendar}
+        title="No active teams"
+        description="Milestones are assigned to approved projects. Approve a proposal first and it will appear here."
+      >
+        {#snippet action()}
+          <a href="/dashboard/faculty/approvals">
+            <Button variant="outline" size="sm">Go to approvals</Button>
+          </a>
+        {/snippet}
+      </EmptyState>
+    {:else}
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+        <Card title={editingMilestoneId ? 'Edit milestone' : 'Create milestone'}>
+          <form onsubmit={handleMilestoneSubmit} class="flex flex-col gap-4">
+            <div class="field">
+              <label for="mil-proj" class="field-label">Project team</label>
+              <select id="mil-proj" bind:value={selectedMilestoneProjectId} required class="field-select">
+                {#each activeProjects as p (p.id)}
+                  <option value={p.id}>{p.name}</option>
+                {/each}
+              </select>
             </div>
-          {:else}
-            <div class="py-8 text-center text-xs text-muted-foreground italic">Select or launch an active project.</div>
-          {/if}
+
+            <div class="field">
+              <label for="mil-title" class="field-label">Milestone title</label>
+              <input
+                id="mil-title"
+                type="text"
+                placeholder="e.g. Set up API endpoints"
+                bind:value={milestoneTitle}
+                required
+                class="field-input"
+              />
+            </div>
+
+            <div class="field">
+              <label for="mil-deadline" class="field-label">Target deadline</label>
+              <input
+                id="mil-deadline"
+                type="date"
+                bind:value={milestoneDeadline}
+                required
+                aria-describedby="mil-deadline-hint"
+                class="field-input"
+              />
+              <p id="mil-deadline-hint" class="field-hint">
+                Every team member is notified when a milestone is created.
+              </p>
+            </div>
+
+            <div class="flex justify-end gap-2">
+              {#if editingMilestoneId}
+                <Button type="button" variant="outline" size="sm" onclick={cancelEdit}>Cancel</Button>
+              {/if}
+              <Button type="submit" variant="primary" size="sm">
+                {editingMilestoneId ? 'Save changes' : 'Assign milestone'}
+              </Button>
+            </div>
+          </form>
         </Card>
+
+        <div class="lg:col-span-2">
+          <Card title="Assigned milestones">
+            {#snippet actions()}
+              <label for="mil-filter" class="sr-only">Show milestones for project</label>
+              <select
+                id="mil-filter"
+                bind:value={selectedMilestoneProjectId}
+                class="field-select h-9 w-auto max-w-52 text-xs font-semibold"
+              >
+                {#each activeProjects as p (p.id)}
+                  <option value={p.id}>{p.name}</option>
+                {/each}
+              </select>
+            {/snippet}
+
+            {#if activeProj}
+              {#if activeProj.milestones.length > 0}
+                <ProgressBar
+                  class="mb-4"
+                  value={completedCount}
+                  max={activeProj.milestones.length}
+                  label="Completed"
+                  valueLabel="{completedCount} / {activeProj.milestones.length}"
+                  tone={completedCount === activeProj.milestones.length ? 'success' : 'accent'}
+                  size="sm"
+                />
+              {/if}
+
+              <ul class="flex flex-col gap-2">
+                {#each activeProj.milestones as m (m.id)}
+                  {@const overdue = !m.completed && m.deadline < today}
+                  <li
+                    class="p-3.5 border border-border rounded-md flex flex-col sm:flex-row sm:items-center
+                      justify-between gap-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div class="flex items-start gap-3 min-w-0">
+                      {#if m.completed}
+                        <CheckCircle2 class="w-5 h-5 text-success shrink-0 mt-0.5" aria-hidden="true" />
+                      {:else}
+                        <Circle class="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" aria-hidden="true" />
+                      {/if}
+                      <div class="min-w-0">
+                        <p
+                          class="text-sm font-bold truncate {m.completed
+                            ? 'line-through text-muted-foreground'
+                            : 'text-foreground'}"
+                        >
+                          {m.title}
+                        </p>
+                        <p class="flex flex-wrap items-center gap-2 mt-1">
+                          <span
+                            class="inline-flex items-center gap-1.5 text-2xs font-semibold tabular
+                              {overdue ? 'text-destructive' : 'text-muted-foreground'}"
+                          >
+                            <Calendar class="w-3.5 h-3.5" aria-hidden="true" />
+                            {m.deadline}
+                          </span>
+                          {#if overdue}
+                            <Badge variant="danger" size="sm">Overdue</Badge>
+                          {/if}
+                          {#if m.extendedDeadline}
+                            <Badge variant="warning" size="sm">Extended</Badge>
+                          {/if}
+                          {#if m.locked}
+                            <Badge variant="secondary" size="sm">Locked</Badge>
+                          {/if}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                      <button
+                        onclick={() => toggleLockMilestone(activeProj.id, m.id)}
+                        class="icon-action"
+                        aria-pressed={Boolean(m.locked)}
+                        aria-label="{m.locked ? 'Unlock' : 'Lock'} milestone: {m.title}"
+                        title={m.locked ? 'Unlock milestone' : 'Lock milestone'}
+                      >
+                        {#if m.locked}
+                          <Lock class="w-4 h-4 text-destructive" />
+                        {:else}
+                          <Unlock class="w-4 h-4" />
+                        {/if}
+                      </button>
+
+                      <button
+                        onclick={() => openExtendDialog(activeProj.id, m)}
+                        class="icon-action"
+                        aria-label="Extend deadline for: {m.title}"
+                        title="Extend deadline"
+                      >
+                        <Clock class="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onclick={() => {
+                          editingMilestoneId = m.id;
+                          milestoneTitle = m.title;
+                          milestoneDeadline = m.deadline;
+                        }}
+                        class="icon-action"
+                        aria-label="Edit milestone: {m.title}"
+                        title="Edit milestone"
+                      >
+                        <Pencil class="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onclick={() => deleteMilestone(activeProj.id, m.id)}
+                        class="icon-action icon-action-danger"
+                        aria-label="Delete milestone: {m.title}"
+                        title="Delete milestone"
+                      >
+                        <Trash2 class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </li>
+                {:else}
+                  <li>
+                    <EmptyState
+                      icon={Calendar}
+                      title="No milestones for this team"
+                      description="Use the form on the left to assign the first deliverable."
+                      size="sm"
+                    />
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <EmptyState icon={Calendar} title="Select a project" description="Pick a team to see its milestones." size="sm" />
+            {/if}
+          </Card>
+        </div>
       </div>
-    </div>
+    {/if}
   </div>
+
+  <Dialog
+    bind:open={extendDialogOpen}
+    size="sm"
+    title="Extend deadline"
+    description={extendTarget?.milestone.title}
+    onclose={() => (extendTarget = null)}
+  >
+    <form id="extend-form" onsubmit={submitExtend} class="field">
+      <label for="extend-date" class="field-label">New deadline</label>
+      <input
+        id="extend-date"
+        type="date"
+        bind:value={extendDeadline}
+        required
+        aria-describedby="extend-hint"
+        class="field-input"
+      />
+      <p id="extend-hint" class="field-hint">
+        The milestone is flagged as extended and every team member is notified.
+      </p>
+    </form>
+
+    {#snippet footer()}
+      <Button type="button" variant="outline" onclick={() => (extendDialogOpen = false)}>Cancel</Button>
+      <Button type="submit" form="extend-form" variant="primary">Extend deadline</Button>
+    {/snippet}
+  </Dialog>
 {/if}

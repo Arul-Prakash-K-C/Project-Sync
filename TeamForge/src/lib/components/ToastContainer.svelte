@@ -2,40 +2,54 @@
   import { toast } from '$lib/stores/toast.svelte';
   import { fly } from 'svelte/transition';
   import { CheckCircle2, AlertTriangle, Info, XCircle, X } from 'lucide-svelte';
+
+  const accents = {
+    success: 'border-l-success',
+    error: 'border-l-destructive',
+    warning: 'border-l-warning',
+    info: 'border-l-info'
+  };
 </script>
 
-<div class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+<!--
+  Toasts are announced as a live region so screen-reader users learn that an
+  action succeeded or failed. Errors interrupt (assertive); everything else
+  waits for a pause (polite).
+-->
+<div
+  class="fixed z-50 flex flex-col gap-2 pointer-events-none
+    inset-x-3 bottom-3 sm:inset-x-auto sm:bottom-auto sm:top-4 sm:right-4 sm:w-full sm:max-w-sm"
+>
   {#each toast.toasts as t (t.id)}
     <div
-      in:fly={{ x: 100, duration: 300 }}
-      out:fly={{ x: 100, duration: 200 }}
-      class="pointer-events-auto flex items-start gap-3 p-4 rounded-md border shadow-lg glass-card transition-all duration-300"
-      class:border-success={t.type === 'success'}
-      class:border-destructive={t.type === 'error'}
-      class:border-warning={t.type === 'warning'}
-      class:border-info={t.type === 'info'}
+      in:fly={{ y: 12, duration: 200 }}
+      out:fly={{ x: 24, duration: 160 }}
+      role={t.type === 'error' ? 'alert' : 'status'}
+      aria-live={t.type === 'error' ? 'assertive' : 'polite'}
+      class="pointer-events-auto flex items-start gap-3 p-3.5 rounded-md border border-border border-l-3
+        bg-card text-card-foreground shadow-e3 {accents[t.type]}"
     >
-      <div class="mt-0.5 shrink-0">
+      <div class="mt-0.5 shrink-0" aria-hidden="true">
         {#if t.type === 'success'}
-          <CheckCircle2 class="w-5 h-5 text-success" />
+          <CheckCircle2 class="w-4.5 h-4.5 text-success" />
         {:else if t.type === 'error'}
-          <XCircle class="w-5 h-5 text-destructive" />
+          <XCircle class="w-4.5 h-4.5 text-destructive" />
         {:else if t.type === 'warning'}
-          <AlertTriangle class="w-5 h-5 text-warning" />
+          <AlertTriangle class="w-4.5 h-4.5 text-warning" />
         {:else}
-          <Info class="w-5 h-5 text-info" />
+          <Info class="w-4.5 h-4.5 text-info" />
         {/if}
       </div>
 
-      <div class="flex-1">
-        <p class="text-sm font-medium text-foreground">{t.message}</p>
-      </div>
+      <p class="flex-1 text-sm text-foreground leading-snug">{t.message}</p>
 
       <button
         onclick={() => toast.dismiss(t.id)}
-        class="shrink-0 text-muted-foreground hover:text-foreground hover:bg-secondary p-1 rounded-lg transition-colors cursor-pointer"
+        aria-label="Dismiss notification"
+        class="shrink-0 -mt-0.5 -mr-1 p-1 rounded-sm text-muted-foreground hover:text-foreground
+          hover:bg-secondary transition-colors cursor-pointer"
       >
-        <X class="w-4 h-4" />
+        <X class="w-3.5 h-3.5" />
       </button>
     </div>
   {/each}

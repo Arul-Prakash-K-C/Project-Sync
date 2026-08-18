@@ -4,22 +4,20 @@
   import { db, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { downloadCsv } from '$lib/utils/csv';
-  import {
-    BarChart3,
-    CheckSquare,
-    Award,
-    FileText,
-    FileDown
-  } from 'lucide-svelte';
+  import { BarChart3, CheckSquare, Award, FileText, FileDown } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
   let projects = $state<Project[]>([]);
+  let loaded = $state(false);
 
   onMount(() => {
     if (auth.user) {
       projects = db.getProjects().filter((p) => p.department === auth.user!.department);
     }
+    loaded = true;
   });
 
   function exportTeamsProgress() {
@@ -76,7 +74,9 @@
       const projFeedback = feedback.filter((f) => f.projectId === p.id).length;
       return p.members.map((member) => {
         const memberTasks = tasks.filter((t) => t.projectId === p.id && t.assignees.includes(member.userId));
-        const memberReports = weeklyReports.filter((r) => r.projectId === p.id && r.submittedBy === member.userId);
+        const memberReports = weeklyReports.filter(
+          (r) => r.projectId === p.id && r.submittedBy === member.userId
+        );
         return {
           Student: member.name,
           Project: p.name,
@@ -114,93 +114,120 @@
     downloadCsv(`project-status-report-${new Date().toISOString().slice(0, 10)}.csv`, rows);
     toast.success('Project Lifecycle Status Report exported');
   }
+
+  /*
+    Each card states how many rows the export will actually contain. Downloading
+    a CSV to find out whether it has anything in it is a wasted round trip —
+    and an empty file reads as a broken button.
+  */
+  const milestoneCount = $derived(projects.reduce((n, p) => n + p.milestones.length, 0));
+  const studentCount = $derived(projects.reduce((n, p) => n + p.members.length, 0));
+
+  const reports = $derived([
+    {
+      key: 'progress',
+      title: 'Teams progress report',
+      description:
+        'Milestone completion, task distribution and outstanding weekly reports for every supervised team.',
+      icon: BarChart3,
+      tone: 'bg-accent/12 text-accent',
+      rows: projects.length,
+      unit: 'team',
+      run: exportTeamsProgress
+    },
+    {
+      key: 'milestones',
+      title: 'Milestone clearing report',
+      description: 'Every milestone with its deadline and whether it is completed, locked, overdue or pending.',
+      icon: CheckSquare,
+      tone: 'bg-success/12 text-success',
+      rows: milestoneCount,
+      unit: 'milestone',
+      run: exportMilestones
+    },
+    {
+      key: 'evaluation',
+      title: 'Student performance evaluation',
+      description: 'Per-student task load, completion counts and weekly report outcomes for grading.',
+      icon: Award,
+      tone: 'bg-warning/12 text-warning',
+      rows: studentCount,
+      unit: 'student',
+      run: exportStudentEvaluation
+    },
+    {
+      key: 'status',
+      title: 'Project lifecycle status',
+      description: 'Registry of every project with ownership, membership, invitations and creation date.',
+      icon: FileText,
+      tone: 'bg-info/12 text-info',
+      rows: projects.length,
+      unit: 'project',
+      run: exportProjectStatus
+    }
+  ]);
 </script>
 
+<svelte:head>
+  <title>Reports Hub — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8 text-left font-sans">
-    <div class="flex flex-col border-b border-border/40 pb-4">
-      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Reports Hub</h2>
-      <p class="text-sm text-muted-foreground mt-1">Generate, visualize, and export evaluation progress reports for administrative and academic reviews.</p>
-    </div>
+  <div class="flex flex-col gap-6 max-w-5xl">
+    <PageHeader
+      title="Reports hub"
+      icon={FileText}
+      description="Export evaluation and progress data for {auth.user.department} as CSV, ready for administrative and academic review."
+    />
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    {#if loaded && projects.length === 0}
+      <EmptyState
+        icon={FileText}
+        title="Nothing to report on yet"
+        description="Reports are generated from the projects in your department. Approve a proposal and the exports will fill in."
+      >
+        {#snippet action()}
+          <a href="/dashboard/faculty/approvals">
+            <Button variant="outline" size="sm">Go to approvals</Button>
+          </a>
+        {/snippet}
+      </EmptyState>
+    {:else}
+      <ul class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {#each reports as r (r.key)}
+          <li>
+            <Card class="h-full flex flex-col">
+              <div class="flex gap-3.5">
+                <span
+                  class="w-10 h-10 rounded-md flex items-center justify-center shrink-0 {r.tone}"
+                  aria-hidden="true"
+                >
+                  <r.icon class="w-5 h-5" />
+                </span>
+                <div class="min-w-0">
+                  <h2 class="text-sm font-bold text-foreground">{r.title}</h2>
+                  <p class="text-xs text-muted-foreground mt-1 leading-relaxed">{r.description}</p>
+                </div>
+              </div>
 
-      <!-- Progress Report Card -->
-      <Card class="flex flex-col justify-between h-48">
-        <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-            <BarChart3 class="w-6 h-6" />
-          </div>
-          <div class="flex flex-col min-w-0">
-            <h4 class="font-extrabold text-foreground text-sm">Teams Progress Report</h4>
-            <p class="text-xs text-muted-foreground mt-1 leading-relaxed">Aggregated progress status showing milestones completed, task distributions, and submission health.</p>
-          </div>
-        </div>
-        <div class="flex justify-end mt-4">
-          <Button variant="outline" size="sm" onclick={exportTeamsProgress}>
-            <FileDown class="w-4 h-4" />
-            Export Progress CSV
-          </Button>
-        </div>
-      </Card>
-
-      <!-- Milestone Report Card -->
-      <Card class="flex flex-col justify-between h-48">
-        <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success shrink-0">
-            <CheckSquare class="w-6 h-6" />
-          </div>
-          <div class="flex flex-col min-w-0">
-            <h4 class="font-extrabold text-foreground text-sm">Milestone Clearing Report</h4>
-            <p class="text-xs text-muted-foreground mt-1 leading-relaxed">List of all active, completed, locked, and overdue milestones across all supervised projects.</p>
-          </div>
-        </div>
-        <div class="flex justify-end mt-4">
-          <Button variant="outline" size="sm" onclick={exportMilestones}>
-            <FileDown class="w-4 h-4" />
-            Export Milestone CSV
-          </Button>
-        </div>
-      </Card>
-
-      <!-- Student Evaluation Report Card -->
-      <Card class="flex flex-col justify-between h-48">
-        <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning shrink-0">
-            <Award class="w-6 h-6" />
-          </div>
-          <div class="flex flex-col min-w-0">
-            <h4 class="font-extrabold text-foreground text-sm">Student Performance Evaluation</h4>
-            <p class="text-xs text-muted-foreground mt-1 leading-relaxed">Performance analytics for grading students based on task share and weekly review feedback.</p>
-          </div>
-        </div>
-        <div class="flex justify-end mt-4">
-          <Button variant="outline" size="sm" onclick={exportStudentEvaluation}>
-            <FileDown class="w-4 h-4" />
-            Export Evaluation CSV
-          </Button>
-        </div>
-      </Card>
-
-      <!-- Project Status Card -->
-      <Card class="flex flex-col justify-between h-48">
-        <div class="flex gap-4">
-          <div class="w-12 h-12 rounded-md bg-destructive/10 flex items-center justify-center text-destructive shrink-0">
-            <FileText class="w-6 h-6" />
-          </div>
-          <div class="flex flex-col min-w-0">
-            <h4 class="font-extrabold text-foreground text-sm">Project Lifecycle Status Report</h4>
-            <p class="text-xs text-muted-foreground mt-1 leading-relaxed">General project workspace registry showing timelines, ownership, and current qualification states.</p>
-          </div>
-        </div>
-        <div class="flex justify-end mt-4">
-          <Button variant="outline" size="sm" onclick={exportProjectStatus}>
-            <FileDown class="w-4 h-4" />
-            Export Status CSV
-          </Button>
-        </div>
-      </Card>
-
-    </div>
+              <div class="mt-auto pt-4 flex items-center justify-between gap-3">
+                <p class="text-2xs text-muted-foreground tabular">
+                  {#if r.rows === 0}
+                    <span class="text-warning font-semibold">No rows yet</span>
+                  {:else}
+                    <span class="font-bold text-foreground">{r.rows}</span>
+                    {r.unit}{r.rows === 1 ? '' : 's'}
+                  {/if}
+                </p>
+                <Button variant="outline" size="sm" onclick={r.run} disabled={r.rows === 0}>
+                  <FileDown class="w-3.5 h-3.5" />
+                  Export CSV
+                </Button>
+              </div>
+            </Card>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 {/if}

@@ -2,163 +2,225 @@
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type WeeklyReport } from '$lib/services/db';
-  import { 
-    BookOpen, 
-    Clock, 
-    Award, 
-    AlertTriangle, 
-    Users,
-    Activity
-  } from 'lucide-svelte';
+  import { BookOpen, Clock, AlertTriangle, Users, ArrowRight, Inbox } from 'lucide-svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import Button from '$lib/components/ui/Button.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import StatCard from '$lib/components/ui/StatCard.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
 
   let projects = $state<Project[]>([]);
   let weeklyReports = $state<WeeklyReport[]>([]);
+  let loaded = $state(false);
 
   onMount(() => {
     loadData();
+    loaded = true;
   });
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter(p => p.department === auth.user!.department);
+      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
       weeklyReports = db.getWeeklyReports();
     }
   }
 
-  let pendingProjects = $derived(projects.filter(p => p.status === 'pending'));
-  let departmentReports = $derived(weeklyReports.filter(rep => projects.some(p => p.id === rep.projectId)));
-  let activeProjects = $derived(projects.filter(p => p.status === 'active'));
+  const today = new Date().toISOString().split('T')[0];
+
+  let pendingProjects = $derived(projects.filter((p) => p.status === 'pending'));
+  let departmentReports = $derived(
+    weeklyReports.filter((rep) => projects.some((p) => p.id === rep.projectId))
+  );
+  let pendingReports = $derived(departmentReports.filter((r) => r.status === 'pending'));
+  let activeProjects = $derived(projects.filter((p) => p.status === 'active'));
   let totalStudents = $derived(activeProjects.reduce((sum, p) => sum + p.members.length, 0));
   let overdueMilestones = $derived(
     activeProjects.reduce((count, p) => {
-      const today = new Date().toISOString().split('T')[0];
-      const overdue = p.milestones.filter(m => !m.completed && m.deadline < today);
+      const overdue = p.milestones.filter((m) => !m.completed && m.deadline < today);
       return count + overdue.length;
     }, 0)
   );
 
+  /** Teams with something wrong are listed first — a supervision dashboard is a
+      queue of exceptions, not an alphabetical roster. */
+  const rankedProjects = $derived(
+    [...activeProjects].sort((a, b) => overdueCount(b) - overdueCount(a) || calculateProgress(a) - calculateProgress(b))
+  );
+
+  function overdueCount(p: Project): number {
+    return p.milestones.filter((m) => !m.completed && m.deadline < today).length;
+  }
+
   function calculateProgress(p: Project): number {
     if (p.milestones.length === 0) return 0;
-    const completed = p.milestones.filter(m => m.completed).length;
+    const completed = p.milestones.filter((m) => m.completed).length;
     return Math.round((completed / p.milestones.length) * 100);
   }
+
+  const reportTone = { approved: 'success', pending: 'warning', revision_requested: 'danger' } as const;
 </script>
 
+<svelte:head>
+  <title>Faculty Dashboard — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    
-    <!-- Title / Nav Header -->
-    <div class="flex flex-col border-b border-border/40 pb-4">
-      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Faculty Overview Dashboard</h2>
-      <p class="text-sm text-muted-foreground mt-1">High-level supervision summary of academic project teams, milestones status, and recent submissions.</p>
-    </div>
+  <div class="flex flex-col gap-7 max-w-7xl">
+    <PageHeader
+      title="Faculty overview"
+      description="Supervision summary for {auth.user.department} — what needs your decision, and how the teams under you are tracking."
+    />
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary shrink-0">
-          <BookOpen class="w-6 h-6" />
+    <!-- What needs a decision, ahead of what merely exists. -->
+    {#if pendingProjects.length > 0 || pendingReports.length > 0}
+      <section
+        aria-label="Awaiting your review"
+        class="rounded-lg border border-accent/30 bg-accent/6 p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+      >
+        <p class="text-sm text-foreground flex-1">
+          <span class="font-bold">Awaiting your review:</span>
+          {#if pendingProjects.length > 0}
+            {pendingProjects.length} project proposal{pendingProjects.length === 1 ? '' : 's'}
+          {/if}
+          {#if pendingProjects.length > 0 && pendingReports.length > 0}·{/if}
+          {#if pendingReports.length > 0}
+            {pendingReports.length} weekly report{pendingReports.length === 1 ? '' : 's'}
+          {/if}
+        </p>
+        <div class="flex flex-wrap gap-2 shrink-0">
+          {#if pendingProjects.length > 0}
+            <a href="/dashboard/faculty/approvals">
+              <Button variant="primary" size="sm">
+                Review proposals
+                <ArrowRight class="w-3.5 h-3.5" />
+              </Button>
+            </a>
+          {/if}
+          {#if pendingReports.length > 0}
+            <a href="/dashboard/faculty/reviews">
+              <Button variant="outline" size="sm">
+                Review reports
+                <ArrowRight class="w-3.5 h-3.5" />
+              </Button>
+            </a>
+          {/if}
         </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Active Projects</p>
-          <p class="text-2xl font-black text-foreground mt-1">{activeProjects.length}</p>
-        </div>
-      </Card>
+      </section>
+    {/if}
 
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-warning/10 flex items-center justify-center text-warning shrink-0">
-          <Clock class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Pending Approvals</p>
-          <p class="text-2xl font-black text-foreground mt-1">{pendingProjects.length}</p>
-        </div>
-      </Card>
+    <section aria-label="Summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <StatCard
+        label="Active projects"
+        value={activeProjects.length}
+        icon={BookOpen}
+        tone="accent"
+        hint="Approved and in progress"
+      />
+      <StatCard
+        label="Pending approvals"
+        value={pendingProjects.length}
+        icon={Clock}
+        tone="warning"
+        hint="Proposals waiting on you"
+      />
+      <StatCard
+        label="Overdue milestones"
+        value={overdueMilestones}
+        icon={AlertTriangle}
+        tone={overdueMilestones > 0 ? 'danger' : 'success'}
+        hint={overdueMilestones > 0 ? 'Past deadline, not completed' : 'Every team is on schedule'}
+      />
+      <StatCard
+        label="Students supervised"
+        value={totalStudents}
+        icon={Users}
+        tone="info"
+        hint="Across active teams"
+      />
+    </section>
 
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-destructive/10 flex items-center justify-center text-destructive shrink-0">
-          <AlertTriangle class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Overdue Milestones</p>
-          <p class="text-2xl font-black text-foreground mt-1">{overdueMilestones}</p>
-        </div>
-      </Card>
-
-      <Card hoverable class="flex items-center gap-4 py-5 px-6">
-        <div class="w-12 h-12 rounded-md bg-success/10 flex items-center justify-center text-success shrink-0">
-          <Users class="w-6 h-6" />
-        </div>
-        <div>
-          <p class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Students Monitored</p>
-          <p class="text-2xl font-black text-foreground mt-1">{totalStudents}</p>
-        </div>
-      </Card>
-    </div>
-
-    <!-- Main Overview Content -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      
-      <!-- Supervised teams list -->
-      <div class="lg:col-span-2 flex flex-col gap-6">
-        <Card>
-          <h3 class="text-lg font-bold text-foreground mb-4">Assigned Student Teams Statistics</h3>
-          
-          <div class="flex flex-col gap-5">
-            {#each activeProjects as p}
-              <div class="p-4 border rounded-md hover:bg-muted/10 transition-colors flex flex-col gap-3">
-                <div class="flex justify-between items-start gap-4">
-                  <div>
-                    <h4 class="font-extrabold text-foreground text-sm">{p.name}</h4>
-                    <p class="text-3xs text-muted-foreground mt-0.5 uppercase tracking-wider font-bold">Lead: {p.ownerName} • {p.members.length} Members</p>
-                  </div>
-                  <Badge variant="success">Active</Badge>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      <div class="lg:col-span-2">
+        <Card title="Team progress" description="Teams needing attention are listed first.">
+          {#if !loaded}
+            <div class="flex flex-col gap-4" aria-busy="true">
+              {#each { length: 3 } as _, i (i)}
+                <div class="flex flex-col gap-2">
+                  <div class="skeleton h-4 w-1/3"></div>
+                  <div class="skeleton h-2 w-full"></div>
                 </div>
-                
-                <div class="flex flex-col gap-1">
-                  <div class="flex justify-between text-3xs font-bold text-muted-foreground">
-                    <span>Milestones Completed</span>
-                    <span>{calculateProgress(p)}%</span>
+              {/each}
+            </div>
+          {:else}
+            <ul class="flex flex-col gap-3">
+              {#each rankedProjects as p (p.id)}
+                {@const overdue = overdueCount(p)}
+                {@const progress = calculateProgress(p)}
+                <li class="p-3.5 border border-border rounded-md hover:bg-muted/30 transition-colors">
+                  <div class="flex justify-between items-start gap-3">
+                    <div class="min-w-0">
+                      <h3 class="text-sm font-bold text-foreground truncate">{p.name}</h3>
+                      <p class="text-2xs text-muted-foreground mt-0.5">
+                        Lead {p.ownerName} · {p.members.length} member{p.members.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    {#if overdue > 0}
+                      <Badge variant="danger" dot size="sm" class="shrink-0">
+                        {overdue} overdue
+                      </Badge>
+                    {:else}
+                      <Badge variant="success" dot size="sm" class="shrink-0">On track</Badge>
+                    {/if}
                   </div>
-                  <div class="w-full h-2 bg-secondary rounded-full overflow-hidden border border-border mt-1">
-                    <div class="h-full bg-primary transition-all duration-500" style="width: {calculateProgress(p)}%"></div>
-                  </div>
-                </div>
-              </div>
-            {:else}
-              <div class="py-12 border border-dashed rounded-md flex flex-col items-center justify-center text-center text-xs text-muted-foreground/60 italic">
-                No active projects currently under supervision in {auth.user.department}.
-              </div>
-            {/each}
-          </div>
+
+                  <ProgressBar
+                    class="mt-3"
+                    value={progress}
+                    label="Milestones completed"
+                    valueLabel="{progress}%"
+                    tone={overdue > 0 ? 'warning' : progress === 100 ? 'success' : 'accent'}
+                    size="sm"
+                  />
+                </li>
+              {:else}
+                <li>
+                  <EmptyState
+                    icon={BookOpen}
+                    title="No active projects"
+                    description="Nothing is under supervision in {auth.user.department} yet. Approved proposals appear here."
+                    size="sm"
+                  />
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </Card>
       </div>
 
-      <!-- Recent activities list -->
-      <Card class="flex flex-col gap-4">
-        <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Recent Submissions Activity</h3>
-        
-        <div class="flex flex-col gap-4 max-h-[400px] overflow-y-auto pr-1">
-          {#each departmentReports.slice().reverse() as rep}
-            {@const proj = projects.find(pr => pr.id === rep.projectId)}
-            <div class="p-3 border rounded-md bg-card flex flex-col gap-1">
-              <div class="flex justify-between items-center">
-                <span class="text-xs font-bold text-foreground">Weekly Report Week {rep.weekNumber}</span>
-                <Badge variant={rep.status === 'approved' ? 'success' : rep.status === 'pending' ? 'warning' : 'danger'}>
-                  {rep.status}
-                </Badge>
-              </div>
-              <p class="text-3xs text-muted-foreground truncate">Project: {proj?.name}</p>
-              <p class="text-3xs text-muted-foreground">Submitted by: {rep.submittedByName}</p>
+      <Card title="Recent submissions" bodyClass="flex flex-col gap-2.5 max-h-[26rem] overflow-y-auto">
+        {#each departmentReports.slice().reverse() as rep (rep.id)}
+          {@const proj = projects.find((pr) => pr.id === rep.projectId)}
+          <article class="p-3 border border-border rounded-md">
+            <div class="flex justify-between items-start gap-2">
+              <h3 class="text-xs font-bold text-foreground">Week {rep.weekNumber} report</h3>
+              <Badge variant={reportTone[rep.status]} size="sm" class="shrink-0 capitalize">
+                {rep.status.replace('_', ' ')}
+              </Badge>
             </div>
-          {:else}
-            <div class="py-8 text-center text-xs text-muted-foreground italic">No recent submission activities found.</div>
-          {/each}
-        </div>
+            <p class="text-2xs text-muted-foreground truncate mt-1">{proj?.name}</p>
+            <p class="text-2xs text-muted-foreground">by {rep.submittedByName}</p>
+          </article>
+        {:else}
+          <EmptyState
+            icon={Inbox}
+            title="No submissions yet"
+            description="Weekly reports from your teams land here as they arrive."
+            size="sm"
+          />
+        {/each}
       </Card>
-
     </div>
   </div>
 {/if}

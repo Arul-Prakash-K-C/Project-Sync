@@ -6,6 +6,9 @@
   let {
     open = $bindable(false),
     title = '',
+    /** Optional supporting line under the title. */
+    description = '',
+    size = 'md',
     children,
     footer,
     class: className = '',
@@ -13,6 +16,8 @@
   }: {
     open: boolean;
     title?: string;
+    description?: string;
+    size?: 'sm' | 'md' | 'lg';
     children?: Snippet;
     footer?: Snippet;
     class?: string;
@@ -20,6 +25,13 @@
   } = $props();
 
   const titleId = `dialog-title-${Math.random().toString(36).slice(2, 9)}`;
+  const descId = `dialog-desc-${Math.random().toString(36).slice(2, 9)}`;
+
+  const sizes = {
+    sm: 'max-w-md',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl'
+  };
 
   let panelEl = $state<HTMLDivElement | null>(null);
   let previouslyFocused: HTMLElement | null = null;
@@ -62,52 +74,72 @@
       previouslyFocused = null;
     }
   });
+
+  // The page behind a modal must not scroll away under it.
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
     <!-- Overlay -->
     <div
-      transition:fade={{ duration: 150 }}
+      transition:fade={{ duration: 120 }}
       onclick={close}
       onkeydown={(e) => e.key === 'Enter' && close()}
       role="button"
       tabindex="-1"
-      aria-label="Close dialog modal backdrop"
-      class="fixed inset-0 bg-black/50 backdrop-blur-xs cursor-pointer"
+      aria-label="Close dialog"
+      class="fixed inset-0 bg-black/55 cursor-pointer"
     ></div>
 
-    <!-- Modal Card -->
+    <!-- Panel. On small screens it docks to the bottom as a sheet, which keeps
+         the primary action inside thumb reach. -->
     <div
       bind:this={panelEl}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
+      aria-describedby={description ? descId : undefined}
       tabindex="-1"
-      transition:scale={{ duration: 150, start: 0.96 }}
-      class="relative w-full max-w-lg border rounded-lg shadow-xl bg-card text-card-foreground p-6 z-10 flex flex-col gap-4 max-h-[85vh] overflow-y-auto focus:outline-none {className}"
+      transition:scale={{ duration: 140, start: 0.97 }}
+      class="relative w-full {sizes[size]} border border-border rounded-t-lg sm:rounded-lg shadow-e3
+        bg-card text-card-foreground z-10 flex flex-col max-h-[92vh] sm:max-h-[85vh]
+        focus:outline-none {className}"
     >
-      <div class="flex items-center justify-between border-b border-border pb-3">
-        <h3 id={titleId} class="font-display text-lg text-foreground">{title}</h3>
+      <div class="flex items-start justify-between gap-4 border-b border-border px-5 py-4 shrink-0">
+        <div class="min-w-0">
+          <h2 id={titleId} class="font-display text-base text-foreground">{title}</h2>
+          {#if description}
+            <p id={descId} class="text-2xs text-muted-foreground mt-1">{description}</p>
+          {/if}
+        </div>
         <button
           onclick={close}
           aria-label="Close dialog"
-          class="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
+          class="icon-action shrink-0"
         >
-          <X class="w-5 h-5" />
+          <X class="w-4 h-4" />
         </button>
       </div>
 
-      <div class="flex-1 text-sm text-foreground">
+      <div class="flex-1 overflow-y-auto px-5 py-4 text-sm text-foreground">
         {#if children}
           {@render children()}
         {/if}
       </div>
 
       {#if footer}
-        <div class="flex items-center justify-end gap-2 border-t border-border pt-3">
+        <div class="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5 shrink-0">
           {@render footer()}
         </div>
       {/if}

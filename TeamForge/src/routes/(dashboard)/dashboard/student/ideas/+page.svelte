@@ -1,16 +1,33 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type ProjectIdea, type User } from '$lib/services/db';
+  import { db, type ProjectIdea } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { 
-    Plus, Search, Filter, Trash2, Edit, Lightbulb, Eye, EyeOff, Users, 
-    Check, Mail, Sparkles, AlertCircle, Info, ChevronRight, X 
+  import {
+    Plus,
+    Search,
+    Trash2,
+    Pencil,
+    Lightbulb,
+    Eye,
+    EyeOff,
+    Users,
+    Mail,
+    Sparkles,
+    AlertCircle,
+    Info,
+    X,
+    SlidersHorizontal
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
+  import Tabs from '$lib/components/ui/Tabs.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
 
   // Navigation / Tabs
   let activeTab = $state<'explore' | 'my-ideas'>('explore');
@@ -19,11 +36,14 @@
   let searchQuery = $state('');
   let selectedDomain = $state('All');
   let selectedSkills = $state<string[]>([]);
+  let showAllSkills = $state(false);
+  let loaded = $state(false);
 
   // Data list states
   let projectIdeas = $state<ProjectIdea[]>([]);
 
   const allSkills = $derived([...new Set(projectIdeas.flatMap((i) => i.requiredSkills))].sort());
+  const visibleSkills = $derived(showAllSkills ? allSkills : allSkills.slice(0, 12));
 
   function toggleSkillFilter(skill: string) {
     selectedSkills = selectedSkills.includes(skill)
@@ -32,9 +52,9 @@
   }
 
   // Dialog management
-  let createDialogOpen = $state(false);
-  let editDialogOpen = $state(false);
+  let formDialogOpen = $state(false);
   let deleteDialogOpen = $state(false);
+  let submitting = $state(false);
 
   // Form states
   let title = $state('');
@@ -49,6 +69,11 @@
   let activeIdea = $state<ProjectIdea | null>(null);
   let ideaIdToDelete = $state<string | null>(null);
 
+  /** Create and edit shared every field, every validation rule and every helper
+      line; they were two near-identical 130-line dialogs that had already begun
+      to drift. One dialog in two modes keeps them honest. */
+  const isEditing = $derived(activeIdea !== null);
+
   const domains = [
     'Web Development',
     'AI / Machine Learning',
@@ -62,6 +87,7 @@
 
   onMount(() => {
     loadData();
+    loaded = true;
   });
 
   function loadData() {
@@ -72,8 +98,8 @@
   function parseCommaInput(val: string): string[] {
     return val
       .split(',')
-      .map(item => item.trim())
-      .filter(item => item.length > 0);
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   }
 
   // Pre-fill form for editing
@@ -86,10 +112,11 @@
     visibility = idea.visibility;
     skillsInput = idea.requiredSkills.join(', ');
     techInput = idea.techStack.join(', ');
-    editDialogOpen = true;
+    formDialogOpen = true;
   }
 
   function openCreateModal() {
+    activeIdea = null;
     title = '';
     description = '';
     domain = 'Web Development';
@@ -97,60 +124,50 @@
     visibility = 'public';
     skillsInput = '';
     techInput = '';
-    createDialogOpen = true;
+    formDialogOpen = true;
   }
 
-  function handleCreate(e: SubmitEvent) {
+  function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!auth.user) return;
 
+    submitting = true;
     try {
       const parsedSkills = parseCommaInput(skillsInput);
       const parsedTech = parseCommaInput(techInput);
 
-      db.createProjectIdea(
-        title,
-        description,
-        parsedSkills,
-        teamSizeRequirement,
-        parsedTech,
-        domain,
-        visibility,
-        auth.user
-      );
+      if (activeIdea) {
+        db.updateProjectIdea(activeIdea.id, {
+          title,
+          description,
+          domain,
+          teamSizeRequirement,
+          visibility,
+          requiredSkills: parsedSkills,
+          techStack: parsedTech
+        });
+        toast.success(`Project Idea "${title}" updated successfully!`);
+      } else {
+        db.createProjectIdea(
+          title,
+          description,
+          parsedSkills,
+          teamSizeRequirement,
+          parsedTech,
+          domain,
+          visibility,
+          auth.user
+        );
+        toast.success(`Project Idea "${title}" created successfully!`);
+      }
 
-      toast.success(`Project Idea "${title}" created successfully!`);
-      createDialogOpen = false;
-      loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create project idea');
-    }
-  }
-
-  function handleEdit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!activeIdea) return;
-
-    try {
-      const parsedSkills = parseCommaInput(skillsInput);
-      const parsedTech = parseCommaInput(techInput);
-
-      db.updateProjectIdea(activeIdea.id, {
-        title,
-        description,
-        domain,
-        teamSizeRequirement,
-        visibility,
-        requiredSkills: parsedSkills,
-        techStack: parsedTech
-      });
-
-      toast.success(`Project Idea "${title}" updated successfully!`);
-      editDialogOpen = false;
+      formDialogOpen = false;
       activeIdea = null;
       loadData();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update project idea');
+      toast.error(err.message || 'Failed to save project idea');
+    } finally {
+      submitting = false;
     }
   }
 
@@ -174,625 +191,543 @@
   }
 
   function handleConnect(idea: ProjectIdea) {
-    toast.success(`Expressing interest in "${idea.title}". A notification has been sent to ${idea.ownerName}!`);
+    toast.success(
+      `Expressing interest in "${idea.title}". A notification has been sent to ${idea.ownerName}!`
+    );
   }
 
   // Calculate skill compatibility dynamically
   function calculateCompatibility(idea: ProjectIdea): number {
     if (!auth.user) return 0;
     let score = 30; // base score
-    
+
     if (idea.requiredSkills.length === 0) return 100;
-    
-    const matchedSkills = idea.requiredSkills.filter(s => 
-      auth.user!.skills.some(userSkill => userSkill.toLowerCase() === s.trim().toLowerCase())
+
+    const matchedSkills = idea.requiredSkills.filter((s) =>
+      auth.user!.skills.some((userSkill) => userSkill.toLowerCase() === s.trim().toLowerCase())
     );
-    
+
     const skillRatio = matchedSkills.length / idea.requiredSkills.length;
     score += Math.min(skillRatio * 50, 50);
 
     const domainLower = idea.domain.toLowerCase();
-    const matchesInterest = auth.user.interests.some(interest => 
-      domainLower.includes(interest.toLowerCase()) || interest.toLowerCase().includes(domainLower)
+    const matchesInterest = auth.user.interests.some(
+      (interest) =>
+        domainLower.includes(interest.toLowerCase()) || interest.toLowerCase().includes(domainLower)
     );
     if (matchesInterest) {
       score += 20;
     }
-    
+
     return Math.round(Math.min(score, 100));
+  }
+
+  function matchesFilters(idea: ProjectIdea) {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      idea.title.toLowerCase().includes(q) ||
+      idea.description.toLowerCase().includes(q) ||
+      idea.requiredSkills.some((s) => s.toLowerCase().includes(q)) ||
+      idea.techStack.some((t) => t.toLowerCase().includes(q));
+
+    const matchesDomain = selectedDomain === 'All' || idea.domain === selectedDomain;
+    const matchesSkills =
+      selectedSkills.length === 0 || selectedSkills.some((s) => idea.requiredSkills.includes(s));
+
+    return matchesSearch && matchesDomain && matchesSkills;
   }
 
   // Derived filtered arrays
   const exploreIdeas = $derived(
-    projectIdeas.filter(idea => {
+    projectIdeas.filter((idea) => {
       if (idea.visibility !== 'public' || (auth.user && idea.ownerId === auth.user.id)) {
         return false;
       }
-      
-      const matchesSearch = idea.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            idea.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            idea.requiredSkills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                            idea.techStack.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      const matchesDomain = selectedDomain === 'All' || idea.domain === selectedDomain;
-      const matchesSkills = selectedSkills.length === 0 || selectedSkills.some((s) => idea.requiredSkills.includes(s));
-
-      return matchesSearch && matchesDomain && matchesSkills;
+      return matchesFilters(idea);
     })
   );
 
   const myIdeas = $derived(
-    projectIdeas.filter(idea => {
+    projectIdeas.filter((idea) => {
       if (!auth.user || idea.ownerId !== auth.user.id) {
         return false;
       }
-
-      const matchesSearch = idea.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            idea.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            idea.requiredSkills.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                            idea.techStack.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      const matchesDomain = selectedDomain === 'All' || idea.domain === selectedDomain;
-      const matchesSkills = selectedSkills.length === 0 || selectedSkills.some((s) => idea.requiredSkills.includes(s));
-
-      return matchesSearch && matchesDomain && matchesSkills;
+      return matchesFilters(idea);
     })
   );
 
   const currentList = $derived(activeTab === 'explore' ? exploreIdeas : myIdeas);
+
+  const exploreTotal = $derived(
+    projectIdeas.filter((i) => i.visibility === 'public' && i.ownerId !== auth.user?.id).length
+  );
+  const myTotal = $derived(projectIdeas.filter((i) => i.ownerId === auth.user?.id).length);
+
+  const activeFilterCount = $derived(
+    (searchQuery ? 1 : 0) + (selectedDomain !== 'All' ? 1 : 0) + selectedSkills.length
+  );
+
+  function clearFilters() {
+    searchQuery = '';
+    selectedDomain = 'All';
+    selectedSkills = [];
+  }
+
+  const parsedSkillPreview = $derived(parseCommaInput(skillsInput));
+  const parsedTechPreview = $derived(parseCommaInput(techInput));
 </script>
 
 <svelte:head>
-  <title>Project Idea Management - TeamForge</title>
-  <meta name="description" content="Students can publish project ideas, requirements, technology stacks, and domain details to attract compatible teammates and form final academic evaluation teams." />
+  <title>Project Ideas — TeamForge</title>
+  <meta
+    name="description"
+    content="Students can publish project ideas, requirements, technology stacks, and domain details to attract compatible teammates and form final academic evaluation teams."
+  />
 </svelte:head>
 
 {#if auth.user}
-  <div class="flex flex-col gap-6" id="project-ideas-container">
-    
-    <!-- Hero Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-      <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-          <Lightbulb class="w-7 h-7 text-warning fill-warning/10" />
-          Project Idea Board
-        </h2>
-        <p class="text-sm text-muted-foreground mt-1">Publish project sketches, target tech stacks, and team requirements to gather your ideal project peers.</p>
-      </div>
-      <Button variant="primary" onclick={openCreateModal} class="group cursor-pointer">
-        <Plus class="w-4 h-4 group-hover:rotate-90 transition-transform duration-200" />
-        Create Project Idea
-      </Button>
-    </div>
+  <div class="flex flex-col gap-6 max-w-7xl" id="project-ideas-container">
+    <PageHeader
+      title="Project Idea Board"
+      icon={Lightbulb}
+      description="Publish a project sketch with its stack and team requirements, or browse what classmates are recruiting for."
+    >
+      {#snippet actions()}
+        <Button variant="primary" onclick={openCreateModal}>
+          <Plus class="w-4 h-4" />
+          Create idea
+        </Button>
+      {/snippet}
+    </PageHeader>
 
-    <!-- Sub-navigation & Search & Filter panel -->
-    <div class="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-      
-      <!-- Custom Tabs -->
-      <div class="flex p-1 rounded-md bg-secondary/50 border border-border max-w-md w-full lg:w-80">
-        <button 
-          onclick={() => activeTab = 'explore'}
-          class="flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex justify-center items-center gap-1.5
-            {activeTab === 'explore' ? 'bg-card text-foreground shadow-xs border' : 'text-muted-foreground hover:text-foreground'}"
-          id="tab-explore"
-        >
-          Explore Ideas
-          <Badge variant={activeTab === 'explore' ? 'primary' : 'outline'} class="text-3xs px-1.5 py-0">
-            {projectIdeas.filter(idea => idea.visibility === 'public' && idea.ownerId !== auth.user!.id).length}
-          </Badge>
-        </button>
-        <button 
-          onclick={() => activeTab = 'my-ideas'}
-          class="flex-1 py-2 px-3 text-xs font-bold rounded-lg transition-all cursor-pointer flex justify-center items-center gap-1.5
-            {activeTab === 'my-ideas' ? 'bg-card text-foreground shadow-xs border' : 'text-muted-foreground hover:text-foreground'}"
-          id="tab-my-ideas"
-        >
-          My Ideas
-          <Badge variant={activeTab === 'my-ideas' ? 'primary' : 'outline'} class="text-3xs px-1.5 py-0">
-            {projectIdeas.filter(idea => idea.ownerId === auth.user!.id).length}
-          </Badge>
-        </button>
-      </div>
+    <Tabs
+      label="Idea board sections"
+      variant="underline"
+      items={[
+        { value: 'explore', label: 'Explore ideas', badge: exploreTotal },
+        { value: 'my-ideas', label: 'My ideas', badge: myTotal }
+      ]}
+      bind:active={activeTab}
+    />
 
-      <!-- Filters Row -->
-      <div class="flex flex-col sm:flex-row gap-3 flex-1 lg:max-w-2xl justify-end">
-        <!-- Search -->
+    <!-- Filters -->
+    <section aria-label="Filters" class="flex flex-col gap-3">
+      <div class="flex flex-col sm:flex-row gap-2.5">
         <div class="relative flex-1">
-          <span class="absolute left-3 top-3 text-muted-foreground">
-            <Search class="w-4 h-4" />
-          </span>
-          <input 
-            type="text" 
-            placeholder="Search ideas, skills, technologies..." 
-            bind:value={searchQuery}
-            class="w-full pl-9 pr-4 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          <Search
+            class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            aria-hidden="true"
+          />
+          <label for="ideas-search-input" class="sr-only">Search ideas, skills or technologies</label>
+          <input
             id="ideas-search-input"
+            type="search"
+            placeholder="Search ideas, skills, technologies…"
+            bind:value={searchQuery}
+            class="field-input field-icon"
           />
         </div>
 
-        <!-- Domain Selection -->
-        <div class="relative shrink-0 min-w-48">
-          <select 
-            bind:value={selectedDomain}
-            class="w-full px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-            id="domain-filter-select"
-          >
-            <option value="All">All Domains</option>
-            {#each domains as d}
-              <option value={d}>{d}</option>
-            {/each}
-          </select>
-        </div>
+        <label for="domain-filter-select" class="sr-only">Filter by domain</label>
+        <select id="domain-filter-select" bind:value={selectedDomain} class="field-select sm:w-56">
+          <option value="All">All domains</option>
+          {#each domains as d (d)}
+            <option value={d}>{d}</option>
+          {/each}
+        </select>
       </div>
-    </div>
 
-    {#if allSkills.length > 0}
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest mr-1">Filter by skill:</span>
-        {#each allSkills as skill}
+      {#if allSkills.length > 0}
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="eyebrow mr-1 inline-flex items-center gap-1.5">
+            <SlidersHorizontal class="w-3 h-3" aria-hidden="true" />
+            Skills
+          </span>
+          {#each visibleSkills as skill (skill)}
+            {@const on = selectedSkills.includes(skill)}
+            <button
+              type="button"
+              onclick={() => toggleSkillFilter(skill)}
+              aria-pressed={on}
+              class="px-2.5 h-7 rounded-full text-2xs font-semibold border transition-colors cursor-pointer
+                {on
+                ? 'bg-accent text-accent-foreground border-accent'
+                : 'bg-card text-muted-foreground border-border hover:border-accent/45 hover:text-foreground'}"
+            >
+              {skill}
+            </button>
+          {/each}
+          {#if allSkills.length > 12}
+            <button
+              type="button"
+              onclick={() => (showAllSkills = !showAllSkills)}
+              class="px-2 h-7 text-2xs font-bold text-accent hover:underline cursor-pointer rounded-sm"
+            >
+              {showAllSkills ? 'Show fewer' : `+${allSkills.length - 12} more`}
+            </button>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="flex items-center justify-between gap-3 border-t border-border pt-3">
+        <p class="text-2xs text-muted-foreground" role="status" aria-live="polite">
+          <span class="font-bold text-foreground tabular">{currentList.length}</span>
+          idea{currentList.length === 1 ? '' : 's'} shown
+        </p>
+        {#if activeFilterCount > 0}
           <button
             type="button"
-            onclick={() => toggleSkillFilter(skill)}
-            class="px-2.5 py-1 rounded-full text-2xs font-semibold border transition-colors cursor-pointer
-              {selectedSkills.includes(skill)
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-transparent text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'}"
+            onclick={clearFilters}
+            class="inline-flex items-center gap-1 text-2xs font-bold text-muted-foreground hover:text-foreground cursor-pointer rounded-sm"
           >
-            {skill}
-          </button>
-        {/each}
-        {#if selectedSkills.length > 0}
-          <button
-            type="button"
-            onclick={() => selectedSkills = []}
-            class="px-2.5 py-1 rounded-full text-2xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer flex items-center gap-1"
-          >
-            <X class="w-3 h-3" />
-            Clear ({selectedSkills.length})
+            <X class="w-3 h-3" aria-hidden="true" />
+            Clear filters
           </button>
         {/if}
       </div>
-    {/if}
+    </section>
 
     <!-- Ideas Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="ideas-grid-list">
-      {#each currentList as idea (idea.id)}
-        <Card hoverable class="p-6 flex flex-col justify-between relative overflow-hidden h-80 min-h-80">
-          
-          <!-- Compatibility Meter or Visibility Indicator -->
-          <div class="absolute right-0 top-0 pt-4 pr-5 flex flex-col items-end">
-            {#if activeTab === 'explore'}
-              <span class="text-2xs font-bold text-muted-foreground uppercase tracking-widest">Match Score</span>
-              <div class="flex items-center gap-1.5 mt-1 font-extrabold text-sm text-foreground bg-primary/5 px-2.5 py-1 rounded-full border border-primary/10">
-                <Sparkles class="w-3.5 h-3.5 text-warning fill-warning/20" />
-                {calculateCompatibility(idea)}% Match
-              </div>
-            {:else}
-              {#if idea.visibility === 'public'}
-                <Badge variant="success" class="flex items-center gap-1">
-                  <Eye class="w-3 h-3" />
-                  Public
-                </Badge>
-              {:else}
-                <Badge variant="secondary" class="flex items-center gap-1 bg-muted/40">
-                  <EyeOff class="w-3 h-3 text-muted-foreground" />
-                  Private
-                </Badge>
-              {/if}
-            {/if}
+    {#if !loaded}
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4" aria-busy="true">
+        {#each { length: 4 } as _, i (i)}
+          <div class="rounded-lg border border-border bg-card p-5 flex flex-col gap-3">
+            <div class="skeleton h-5 w-2/3"></div>
+            <div class="skeleton h-3 w-full"></div>
+            <div class="skeleton h-3 w-5/6"></div>
+            <div class="skeleton h-8 w-full mt-4"></div>
           </div>
-
-          <!-- Card Header & Description -->
-          <div>
-            <div class="flex gap-4">
-              <!-- Avatar or Bulb -->
-              <div class="w-12 h-12 rounded-md bg-warning/10 border border-warning/20 flex items-center justify-center text-warning shrink-0">
-                <Lightbulb class="w-6 h-6" />
-              </div>
-              <div class="flex flex-col min-w-0 pr-28">
-                <span class="font-extrabold text-foreground text-base truncate" title={idea.title}>{idea.title}</span>
-                <span class="text-xs text-primary font-semibold truncate mt-0.5">{idea.domain}</span>
-              </div>
-            </div>
-
-            <p class="text-xs text-muted-foreground mt-4 line-clamp-3 leading-relaxed min-h-[4.5rem]">
-              {idea.description}
-            </p>
-          </div>
-
-          <!-- Tech Stacks and Skills Required -->
-          <div class="mt-4 flex flex-col gap-2">
-            <div class="flex flex-wrap gap-1 items-center">
-              <span class="text-3xs font-extrabold text-muted-foreground uppercase mr-1">Skills:</span>
-              {#each idea.requiredSkills.slice(0, 3) as skill}
-                <Badge variant="primary" class="text-3xs px-2 py-0">
-                  {skill}
-                </Badge>
-              {:else}
-                <span class="text-3xs text-muted-foreground">None specified</span>
-              {/each}
-              {#if idea.requiredSkills.length > 3}
-                <span class="text-3xs text-muted-foreground font-semibold">+{idea.requiredSkills.length - 3} more</span>
-              {/if}
-            </div>
-
-            <div class="flex flex-wrap gap-1 items-center">
-              <span class="text-3xs font-extrabold text-muted-foreground uppercase mr-1">Tech:</span>
-              {#each idea.techStack.slice(0, 3) as tech}
-                <Badge variant="outline" class="text-3xs px-2 py-0 border-primary/20 text-primary">
-                  {tech}
-                </Badge>
-              {:else}
-                <span class="text-3xs text-muted-foreground">None specified</span>
-              {/each}
-              {#if idea.techStack.length > 3}
-                <span class="text-3xs text-muted-foreground font-semibold">+{idea.techStack.length - 3} more</span>
-              {/if}
-            </div>
-          </div>
-
-          <!-- Card Footer Action Panel -->
-          <div class="mt-6 pt-4 border-t border-border flex items-center justify-between">
-            <div class="flex items-center gap-1.5">
-              {#if activeTab === 'explore'}
-                <img 
-                  src={idea.ownerAvatar} 
-                  alt={idea.ownerName} 
-                  class="w-7 h-7 rounded-full bg-muted border border-border"
-                />
-                <div class="flex flex-col">
-                  <span class="text-[11px] font-bold text-foreground leading-none">{idea.ownerName}</span>
-                  <span class="text-[9px] text-muted-foreground mt-0.5">Author</span>
-                </div>
-              {:else}
-                <div class="flex items-center gap-1 text-muted-foreground">
-                  <Users class="w-3.5 h-3.5" />
-                  <span class="text-2xs font-bold">Team Requirement: {idea.teamSizeRequirement} peers</span>
-                </div>
-              {/if}
-            </div>
-
-            <div class="flex items-center gap-2">
-              {#if activeTab === 'my-ideas'}
-                <button 
-                  onclick={() => openEditModal(idea)}
-                  class="p-2 border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/40 rounded-md transition-all cursor-pointer"
-                  title="Edit Idea"
-                  id="btn-edit-idea-{idea.id}"
+        {/each}
+      </div>
+    {:else}
+      <ul class="grid grid-cols-1 xl:grid-cols-2 gap-4" id="ideas-grid-list">
+        {#each currentList as idea (idea.id)}
+          {@const score = calculateCompatibility(idea)}
+          <li>
+            <Card hoverable class="h-full flex flex-col">
+              <div class="flex items-start gap-3.5">
+                <span
+                  class="w-11 h-11 rounded-md bg-warning/12 border border-warning/25 flex items-center
+                    justify-center text-warning shrink-0"
+                  aria-hidden="true"
                 >
-                  <Edit class="w-4 h-4" />
-                </button>
-                <button 
-                  onclick={() => confirmDelete(idea.id)}
-                  class="p-2 border border-destructive/20 text-destructive hover:text-white hover:bg-destructive/100 rounded-md transition-all cursor-pointer"
-                  title="Delete Idea"
-                  id="btn-delete-idea-{idea.id}"
-                >
-                  <Trash2 class="w-4 h-4" />
-                </button>
-              {:else}
-                <div class="flex items-center gap-1.5 text-muted-foreground pr-2">
-                  <Users class="w-3.5 h-3.5" />
-                  <span class="text-2xs font-bold">{idea.teamSizeRequirement} positions</span>
+                  <Lightbulb class="w-5 h-5" />
+                </span>
+
+                <div class="flex-1 min-w-0">
+                  <h2 class="text-base font-bold text-foreground leading-snug" title={idea.title}>
+                    {idea.title}
+                  </h2>
+                  <p class="text-xs text-accent font-semibold mt-0.5 truncate">{idea.domain}</p>
                 </div>
-                <Button variant="outline" size="sm" onclick={() => handleConnect(idea)} class="cursor-pointer" id="btn-connect-idea-{idea.id}">
-                  <Mail class="w-3.5 h-3.5" />
-                  Connect
-                </Button>
-              {/if}
-            </div>
-          </div>
 
-        </Card>
-      {:else}
-        <div class="col-span-full py-16 border border-dashed rounded-lg flex flex-col items-center justify-center text-center bg-card/10">
-          <Lightbulb class="w-14 h-14 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">No project ideas found</p>
-          <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Try tweaking your search keywords, changing the domain filter, or launch your own project idea proposal.</p>
-        </div>
-      {/each}
-    </div>
+                <div class="shrink-0 text-right">
+                  {#if activeTab === 'explore'}
+                    <p class="eyebrow">Match</p>
+                    <p class="font-display text-lg text-foreground tabular leading-none mt-1">{score}%</p>
+                    <ProgressBar
+                      class="mt-2 w-20"
+                      value={score}
+                      tone={score >= 75 ? 'success' : 'accent'}
+                      size="sm"
+                      label="Skill match for {idea.title}"
+                    />
+                  {:else}
+                    <Badge variant={idea.visibility === 'public' ? 'success' : 'secondary'} size="sm">
+                      {#if idea.visibility === 'public'}
+                        <Eye class="w-3 h-3" aria-hidden="true" /> Public
+                      {:else}
+                        <EyeOff class="w-3 h-3" aria-hidden="true" /> Private
+                      {/if}
+                    </Badge>
+                  {/if}
+                </div>
+              </div>
 
+              <p class="text-xs text-muted-foreground mt-3.5 line-clamp-3 leading-relaxed">
+                {idea.description}
+              </p>
+
+              <div class="flex flex-col gap-2 mt-4">
+                <div class="flex flex-wrap gap-1.5 items-center">
+                  <span class="eyebrow">Skills</span>
+                  {#each idea.requiredSkills.slice(0, 3) as skill (skill)}
+                    <Badge variant="primary" size="sm">{skill}</Badge>
+                  {:else}
+                    <span class="text-2xs text-muted-foreground">None specified</span>
+                  {/each}
+                  {#if idea.requiredSkills.length > 3}
+                    <Badge variant="outline" size="sm">+{idea.requiredSkills.length - 3}</Badge>
+                  {/if}
+                </div>
+
+                <div class="flex flex-wrap gap-1.5 items-center">
+                  <span class="eyebrow">Stack</span>
+                  {#each idea.techStack.slice(0, 3) as tech (tech)}
+                    <Badge variant="info" size="sm">{tech}</Badge>
+                  {:else}
+                    <span class="text-2xs text-muted-foreground">None specified</span>
+                  {/each}
+                  {#if idea.techStack.length > 3}
+                    <Badge variant="outline" size="sm">+{idea.techStack.length - 3}</Badge>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="mt-auto pt-4 flex items-center justify-between gap-3">
+                {#if activeTab === 'explore'}
+                  <div class="flex items-center gap-2 min-w-0">
+                    <Avatar src={idea.ownerAvatar} name={idea.ownerName} size="xs" class="rounded-full" />
+                    <div class="min-w-0 leading-tight">
+                      <p class="text-2xs font-bold text-foreground truncate">{idea.ownerName}</p>
+                      <p class="text-3xs text-muted-foreground">
+                        Needs {idea.teamSizeRequirement} teammate{idea.teamSizeRequirement === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => handleConnect(idea)}
+                    id="btn-connect-idea-{idea.id}"
+                    class="shrink-0"
+                  >
+                    <Mail class="w-3.5 h-3.5" />
+                    Connect
+                  </Button>
+                {:else}
+                  <p class="inline-flex items-center gap-1.5 text-2xs font-semibold text-muted-foreground">
+                    <Users class="w-3.5 h-3.5" aria-hidden="true" />
+                    {idea.teamSizeRequirement} teammate{idea.teamSizeRequirement === 1 ? '' : 's'} wanted
+                  </p>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onclick={() => openEditModal(idea)}
+                      class="icon-action"
+                      aria-label="Edit idea: {idea.title}"
+                      id="btn-edit-idea-{idea.id}"
+                    >
+                      <Pencil class="w-4 h-4" />
+                    </button>
+                    <button
+                      onclick={() => confirmDelete(idea.id)}
+                      class="icon-action icon-action-danger"
+                      aria-label="Delete idea: {idea.title}"
+                      id="btn-delete-idea-{idea.id}"
+                    >
+                      <Trash2 class="w-4 h-4" />
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            </Card>
+          </li>
+        {:else}
+          <li class="col-span-full">
+            <EmptyState
+              icon={Lightbulb}
+              title={activeFilterCount > 0
+                ? 'No ideas match these filters'
+                : activeTab === 'explore'
+                  ? 'No public ideas yet'
+                  : 'You have not published an idea'}
+              description={activeFilterCount > 0
+                ? 'Try a different domain, drop a skill, or clear the search.'
+                : activeTab === 'explore'
+                  ? 'Nobody is recruiting on the public board right now. Publish your own idea and classmates can find you instead.'
+                  : 'Publish a sketch of what you want to build — its domain, stack and how many teammates you need.'}
+            >
+              {#snippet action()}
+                {#if activeFilterCount > 0}
+                  <Button variant="outline" size="sm" onclick={clearFilters}>Clear filters</Button>
+                {:else}
+                  <Button variant="primary" size="sm" onclick={openCreateModal}>
+                    <Plus class="w-3.5 h-3.5" />
+                    Create idea
+                  </Button>
+                {/if}
+              {/snippet}
+            </EmptyState>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   </div>
 
-  <!-- Create Idea Dialog -->
-  <Dialog bind:open={createDialogOpen} title="Publish Project Idea" class="max-w-xl">
-    <form onsubmit={handleCreate} class="flex flex-col gap-4" id="create-idea-form">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        <!-- Title -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label for="idea-title" class="text-xs font-semibold text-foreground">Idea Title</label>
-          <input 
-            id="idea-title"
-            type="text" 
-            placeholder="e.g. Smart Campus Parking Assistant" 
-            bind:value={title} 
-            required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-        </div>
+  <!-- Create / edit share one dialog so the two forms cannot drift apart. -->
+  <Dialog
+    bind:open={formDialogOpen}
+    size="lg"
+    title={isEditing ? 'Modify project idea' : 'Publish project idea'}
+    description={isEditing
+      ? 'Changes are visible to anyone browsing the board straight away.'
+      : 'Describe what you want to build and who you need to build it with.'}
+    onclose={() => (activeIdea = null)}
+  >
+    <form id="idea-form" onsubmit={handleSubmit} class="flex flex-col gap-4">
+      <div class="field">
+        <label for="idea-title" class="field-label">Idea title</label>
+        <input
+          id="idea-title"
+          type="text"
+          placeholder="e.g. Smart Campus Parking Assistant"
+          bind:value={title}
+          required
+          class="field-input"
+        />
+      </div>
 
-        <!-- Description -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label for="idea-desc" class="text-xs font-semibold text-foreground">Detailed Description</label>
-          <textarea 
-            id="idea-desc"
-            placeholder="Provide a detailed description of the project, including scope, objectives, and deliverables..." 
-            bind:value={description} 
-            required
-            rows="4"
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
-          ></textarea>
-        </div>
+      <div class="field">
+        <label for="idea-desc" class="field-label">Detailed description</label>
+        <textarea
+          id="idea-desc"
+          placeholder="Scope, objectives and deliverables…"
+          bind:value={description}
+          required
+          rows="4"
+          class="field-textarea"
+        ></textarea>
+      </div>
 
-        <!-- Domain Selection -->
-        <div class="flex flex-col gap-1.5">
-          <label for="idea-domain" class="text-xs font-semibold text-foreground">Domain</label>
-          <select 
-            id="idea-domain"
-            bind:value={domain}
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-          >
-            {#each domains as d}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="field">
+          <label for="idea-domain" class="field-label">Domain</label>
+          <select id="idea-domain" bind:value={domain} class="field-select">
+            {#each domains as d (d)}
               <option value={d}>{d}</option>
             {/each}
           </select>
         </div>
 
-        <!-- Team Size Requirement -->
-        <div class="flex flex-col gap-1.5">
-          <label for="idea-team-size" class="text-xs font-semibold text-foreground">Target Team Size (Peers)</label>
-          <input 
+        <div class="field">
+          <label for="idea-team-size" class="field-label">Teammates wanted</label>
+          <input
             id="idea-team-size"
-            type="number" 
-            min="1" 
+            type="number"
+            min="1"
             max="10"
-            bind:value={teamSizeRequirement} 
+            bind:value={teamSizeRequirement}
             required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+            class="field-input"
           />
         </div>
-
-        <!-- Required Skills -->
-        <div class="flex flex-col gap-1.5">
-          <label for="idea-skills" class="text-xs font-semibold text-foreground">Required Skills (Comma separated)</label>
-          <input 
-            id="idea-skills"
-            type="text" 
-            placeholder="e.g. Svelte, Python, IoT" 
-            bind:value={skillsInput} 
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-          {#if parseCommaInput(skillsInput).length > 0}
-            <div class="flex flex-wrap gap-1 mt-1">
-              {#each parseCommaInput(skillsInput) as skill}
-                <Badge variant="primary" class="text-3xs">{skill}</Badge>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <!-- Tech Stack -->
-        <div class="flex flex-col gap-1.5">
-          <label for="idea-tech" class="text-xs font-semibold text-foreground">Tech Stack (Comma separated)</label>
-          <input 
-            id="idea-tech"
-            type="text" 
-            placeholder="e.g. OpenCV, Raspberry Pi" 
-            bind:value={techInput} 
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-          {#if parseCommaInput(techInput).length > 0}
-            <div class="flex flex-wrap gap-1 mt-1">
-              {#each parseCommaInput(techInput) as tech}
-                <Badge variant="outline" class="text-3xs text-primary">{tech}</Badge>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <!-- Visibility Selection -->
-        <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
-          <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
-          <div class="flex gap-4 mt-1">
-            <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input
-                type="radio"
-                name="visibility"
-                value="public"
-                bind:group={visibility}
-                class="accent-primary"
-              />
-              <span class="flex items-center gap-1 font-medium">
-                <Eye class="w-4 h-4 text-success" />
-                Public (Show on board for everyone)
-              </span>
-            </label>
-            <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input
-                type="radio"
-                name="visibility"
-                value="private"
-                bind:group={visibility}
-                class="accent-primary"
-              />
-              <span class="flex items-center gap-1 font-medium">
-                <EyeOff class="w-4 h-4 text-muted-foreground" />
-                Private (Draft mode, only you can see it)
-              </span>
-            </label>
-          </div>
-        </fieldset>
-
       </div>
 
-      <!-- Info Alert -->
-      <div class="p-3 bg-primary/5 border border-primary/20 text-primary dark:text-primary-foreground/90 rounded-md flex gap-2.5 text-xs mt-2">
-        <Info class="w-4 h-4 shrink-0 mt-0.5" />
-        <span>Publishing public ideas lets other students search for them and express interest in joining your team.</span>
-      </div>
-
-      <div class="flex justify-end gap-2 mt-2">
-        <Button type="button" variant="outline" onclick={() => createDialogOpen = false}>Cancel</Button>
-        <Button type="submit" variant="primary">Publish Proposal</Button>
-      </div>
-    </form>
-  </Dialog>
-
-  <!-- Edit Idea Dialog -->
-  <Dialog bind:open={editDialogOpen} title="Modify Project Idea" class="max-w-xl">
-    <form onsubmit={handleEdit} class="flex flex-col gap-4" id="edit-idea-form">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        <!-- Title -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label for="edit-idea-title" class="text-xs font-semibold text-foreground">Idea Title</label>
-          <input 
-            id="edit-idea-title"
-            type="text" 
-            placeholder="e.g. Smart Campus Parking Assistant" 
-            bind:value={title} 
-            required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-        </div>
-
-        <!-- Description -->
-        <div class="flex flex-col gap-1.5 md:col-span-2">
-          <label for="edit-idea-desc" class="text-xs font-semibold text-foreground">Detailed Description</label>
-          <textarea 
-            id="edit-idea-desc"
-            placeholder="Provide a detailed description of the project, including scope, objectives, and deliverables..." 
-            bind:value={description} 
-            required
-            rows="4"
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
-          ></textarea>
-        </div>
-
-        <!-- Domain Selection -->
-        <div class="flex flex-col gap-1.5">
-          <label for="edit-idea-domain" class="text-xs font-semibold text-foreground">Domain</label>
-          <select 
-            id="edit-idea-domain"
-            bind:value={domain}
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-          >
-            {#each domains as d}
-              <option value={d}>{d}</option>
+      <div class="field">
+        <label for="idea-skills" class="field-label">Required skills</label>
+        <input
+          id="idea-skills"
+          type="text"
+          placeholder="e.g. Svelte, Python, IoT"
+          bind:value={skillsInput}
+          aria-describedby="idea-skills-hint"
+          class="field-input"
+        />
+        <p id="idea-skills-hint" class="field-hint">Separate with commas.</p>
+        {#if parsedSkillPreview.length > 0}
+          <div class="flex flex-wrap gap-1.5 mt-1">
+            {#each parsedSkillPreview as skill (skill)}
+              <Badge variant="primary" size="sm">{skill}</Badge>
             {/each}
-          </select>
-        </div>
-
-        <!-- Team Size Requirement -->
-        <div class="flex flex-col gap-1.5">
-          <label for="edit-idea-team-size" class="text-xs font-semibold text-foreground">Target Team Size (Peers)</label>
-          <input 
-            id="edit-idea-team-size"
-            type="number" 
-            min="1" 
-            max="10"
-            bind:value={teamSizeRequirement} 
-            required
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-        </div>
-
-        <!-- Required Skills -->
-        <div class="flex flex-col gap-1.5">
-          <label for="edit-idea-skills" class="text-xs font-semibold text-foreground">Required Skills (Comma separated)</label>
-          <input 
-            id="edit-idea-skills"
-            type="text" 
-            placeholder="e.g. Svelte, Python, IoT" 
-            bind:value={skillsInput} 
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-          {#if parseCommaInput(skillsInput).length > 0}
-            <div class="flex flex-wrap gap-1 mt-1">
-              {#each parseCommaInput(skillsInput) as skill}
-                <Badge variant="primary" class="text-3xs">{skill}</Badge>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <!-- Tech Stack -->
-        <div class="flex flex-col gap-1.5">
-          <label for="edit-idea-tech" class="text-xs font-semibold text-foreground">Tech Stack (Comma separated)</label>
-          <input 
-            id="edit-idea-tech"
-            type="text" 
-            placeholder="e.g. OpenCV, Raspberry Pi" 
-            bind:value={techInput} 
-            class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-          />
-          {#if parseCommaInput(techInput).length > 0}
-            <div class="flex flex-wrap gap-1 mt-1">
-              {#each parseCommaInput(techInput) as tech}
-                <Badge variant="outline" class="text-3xs text-primary">{tech}</Badge>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <!-- Visibility Selection -->
-        <fieldset class="flex flex-col gap-1.5 md:col-span-2 border-0 p-0 m-0">
-          <legend class="text-xs font-semibold text-foreground p-0">Project Visibility</legend>
-          <div class="flex gap-4 mt-1">
-            <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input
-                type="radio"
-                name="edit-visibility"
-                value="public"
-                bind:group={visibility}
-                class="accent-primary"
-              />
-              <span class="flex items-center gap-1 font-medium">
-                <Eye class="w-4 h-4 text-success" />
-                Public (Show on board for everyone)
-              </span>
-            </label>
-            <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-              <input
-                type="radio"
-                name="edit-visibility"
-                value="private"
-                bind:group={visibility}
-                class="accent-primary"
-              />
-              <span class="flex items-center gap-1 font-medium">
-                <EyeOff class="w-4 h-4 text-muted-foreground" />
-                Private (Draft mode, only you can see it)
-              </span>
-            </label>
           </div>
-        </fieldset>
-
+        {/if}
       </div>
 
-      <div class="flex justify-end gap-2 mt-2">
-        <Button type="button" variant="outline" onclick={() => editDialogOpen = false}>Cancel</Button>
-        <Button type="submit" variant="primary">Save Changes</Button>
+      <div class="field">
+        <label for="idea-tech" class="field-label">Tech stack</label>
+        <input
+          id="idea-tech"
+          type="text"
+          placeholder="e.g. OpenCV, Raspberry Pi"
+          bind:value={techInput}
+          aria-describedby="idea-tech-hint"
+          class="field-input"
+        />
+        <p id="idea-tech-hint" class="field-hint">Separate with commas.</p>
+        {#if parsedTechPreview.length > 0}
+          <div class="flex flex-wrap gap-1.5 mt-1">
+            {#each parsedTechPreview as tech (tech)}
+              <Badge variant="info" size="sm">{tech}</Badge>
+            {/each}
+          </div>
+        {/if}
       </div>
+
+      <fieldset class="field border-0 p-0 m-0">
+        <legend class="field-label p-0 mb-1.5">Visibility</legend>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label
+            class="flex items-start gap-2.5 p-3 rounded-md border cursor-pointer transition-colors
+              {visibility === 'public'
+              ? 'border-accent bg-accent/8'
+              : 'border-border hover:bg-secondary'}"
+          >
+            <input type="radio" name="visibility" value="public" bind:group={visibility} class="mt-0.5" />
+            <span class="min-w-0">
+              <span class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Eye class="w-3.5 h-3.5 text-success" aria-hidden="true" />
+                Public
+              </span>
+              <span class="block text-2xs text-muted-foreground mt-0.5">
+                Listed on the board for everyone.
+              </span>
+            </span>
+          </label>
+
+          <label
+            class="flex items-start gap-2.5 p-3 rounded-md border cursor-pointer transition-colors
+              {visibility === 'private'
+              ? 'border-accent bg-accent/8'
+              : 'border-border hover:bg-secondary'}"
+          >
+            <input type="radio" name="visibility" value="private" bind:group={visibility} class="mt-0.5" />
+            <span class="min-w-0">
+              <span class="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <EyeOff class="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+                Private
+              </span>
+              <span class="block text-2xs text-muted-foreground mt-0.5">
+                Draft mode — only you can see it.
+              </span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      {#if !isEditing}
+        <div
+          class="p-3 bg-accent/8 border border-accent/25 text-foreground rounded-md flex gap-2.5 text-xs leading-relaxed"
+        >
+          <Info class="w-4 h-4 shrink-0 mt-0.5 text-accent" aria-hidden="true" />
+          <span>
+            Public ideas are searchable by other students, who can then express interest in joining
+            your team.
+          </span>
+        </div>
+      {/if}
     </form>
+
+    {#snippet footer()}
+      <Button type="button" variant="outline" onclick={() => (formDialogOpen = false)}>Cancel</Button>
+      <Button type="submit" form="idea-form" variant="primary" loading={submitting}>
+        {isEditing ? 'Save changes' : 'Publish proposal'}
+      </Button>
+    {/snippet}
   </Dialog>
 
   <!-- Delete Confirmation Dialog -->
-  <Dialog bind:open={deleteDialogOpen} title="Confirm Deletion">
-    <div class="flex flex-col gap-4" id="delete-confirmation-container">
-      <div class="flex items-start gap-3 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
-        <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
-        <div class="flex flex-col">
-          <span class="text-xs font-bold">Are you absolutely sure?</span>
-          <span class="text-2xs mt-1">This action cannot be undone. The project idea proposal will be permanently removed from the system.</span>
-        </div>
-      </div>
-      <div class="flex justify-end gap-2">
-        <Button variant="outline" onclick={() => deleteDialogOpen = false}>Cancel</Button>
-        <Button variant="danger" onclick={handleDelete}>Delete Idea</Button>
-      </div>
+  <Dialog bind:open={deleteDialogOpen} size="sm" title="Delete this project idea?">
+    <div id="delete-confirmation-container" class="flex gap-3">
+      <AlertCircle class="w-5 h-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
+      <p class="text-sm text-muted-foreground leading-relaxed">
+        This cannot be undone. The proposal is removed from the board and anyone who had it open will
+        no longer see it.
+      </p>
     </div>
+
+    {#snippet footer()}
+      <Button variant="outline" onclick={() => (deleteDialogOpen = false)}>Cancel</Button>
+      <Button variant="danger" onclick={handleDelete}>Delete idea</Button>
+    {/snippet}
   </Dialog>
 {/if}

@@ -3,10 +3,12 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type Announcement } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Megaphone } from 'lucide-svelte';
+  import { Megaphone, Send } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
   let projects = $state<Project[]>([]);
   let announcements = $state<Announcement[]>([]);
@@ -16,6 +18,7 @@
   let announceTargetIds = $state<string[]>([]);
   let announceTitle = $state('');
   let announceContent = $state('');
+  let submitting = $state(false);
 
   onMount(() => {
     loadData();
@@ -23,20 +26,42 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter(p => p.department === auth.user!.department);
+      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
       announcements = db.getAnnouncements();
     }
   }
 
-  let activeProjects = $derived(projects.filter(p => p.status === 'active'));
+  let activeProjects = $derived(projects.filter((p) => p.status === 'active'));
+
+  /** How many people will actually receive this — shown before sending, because
+      a broadcast cannot be recalled. */
+  const recipientCount = $derived.by(() => {
+    const targets =
+      announceTargetType === 'all' ? projects : projects.filter((p) => announceTargetIds.includes(p.id));
+    const ids = new Set(targets.flatMap((p) => p.members.map((m) => m.userId)));
+    return ids.size;
+  });
+
+  const canSubmit = $derived(
+    Boolean(announceTitle) &&
+      Boolean(announceContent) &&
+      (announceTargetType === 'all' || announceTargetIds.length > 0)
+  );
 
   function handleAnnounceSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!announceTitle || !announceContent) return;
 
+    submitting = true;
     try {
-      const targets = announceTargetType === 'all' ? projects.map(p => p.id) : announceTargetIds;
-      const ann = db.createAnnouncement(announceTargetType, targets, announceTitle, announceContent, auth.user!.name);
+      const targets = announceTargetType === 'all' ? projects.map((p) => p.id) : announceTargetIds;
+      const ann = db.createAnnouncement(
+        announceTargetType,
+        targets,
+        announceTitle,
+        announceContent,
+        auth.user!.name
+      );
       db.logAudit(
         auth.user!.id,
         auth.user!.name,
@@ -46,9 +71,9 @@
         `${announceTitle} (${announceTargetType === 'all' ? 'all teams' : `${targets.length} team(s)`})`
       );
 
-      const targetingProjects = projects.filter(p => targets.includes(p.id));
-      targetingProjects.forEach(proj => {
-        proj.members.forEach(member => {
+      const targetingProjects = projects.filter((p) => targets.includes(p.id));
+      targetingProjects.forEach((proj) => {
+        proj.members.forEach((member) => {
           db.saveNotifications([
             {
               id: `notif_${Date.now()}_${member.userId}`,
@@ -71,106 +96,125 @@
       loadData();
     } catch (err) {
       toast.error('Failed to post announcement');
+    } finally {
+      submitting = false;
     }
   }
 </script>
 
-{#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    <div class="flex flex-col border-b border-border/40 pb-4">
-      <h2 class="text-3xl font-extrabold tracking-tight text-foreground">Announcements Board</h2>
-      <p class="text-sm text-muted-foreground mt-1">Broadcast general updates or select specific project teams to receive targeted announcements.</p>
-    </div>
+<svelte:head>
+  <title>Announcements — TeamForge</title>
+</svelte:head>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-      <!-- New Announcement Form -->
-      <Card class="flex flex-col gap-4">
-        <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2">Publish Announcement</h3>
-        
+{#if auth.user}
+  <div class="flex flex-col gap-6 max-w-7xl">
+    <PageHeader
+      title="Announcements"
+      icon={Megaphone}
+      description="Broadcast a notice to every student you supervise, or target specific project teams."
+    />
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      <Card title="Publish announcement">
         <form onsubmit={handleAnnounceSubmit} class="flex flex-col gap-4">
-          <div class="flex flex-col gap-1.5">
-            <span class="text-xs font-semibold text-foreground">Target Audience</span>
-            <div class="flex flex-col gap-2 mt-1">
-              <label class="flex items-center gap-2 text-xs font-semibold text-muted-foreground cursor-pointer">
-                <input type="radio" value="all" bind:group={announceTargetType} class="cursor-pointer" />
-                All Assigned Students
+          <fieldset class="field border-0 p-0 m-0">
+            <legend class="field-label p-0 mb-1.5">Audience</legend>
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-2.5 text-xs font-semibold text-foreground cursor-pointer">
+                <input type="radio" value="all" bind:group={announceTargetType} />
+                All assigned students
               </label>
-              <label class="flex items-center gap-2 text-xs font-semibold text-muted-foreground cursor-pointer">
-                <input type="radio" value="team" bind:group={announceTargetType} class="cursor-pointer" />
-                Specific Project Teams
+              <label class="flex items-center gap-2.5 text-xs font-semibold text-foreground cursor-pointer">
+                <input type="radio" value="team" bind:group={announceTargetType} />
+                Specific project teams
               </label>
             </div>
-          </div>
+          </fieldset>
 
           {#if announceTargetType === 'team'}
-            <div class="flex flex-col gap-1.5 p-3 border rounded-md bg-muted/10">
-              <span class="text-xs font-bold text-foreground mb-1 block">Select Teams:</span>
-              {#each activeProjects as p}
-                <label class="flex items-center gap-2 text-xs font-semibold text-muted-foreground py-0.5 cursor-pointer">
-                  <input type="checkbox" value={p.id} bind:group={announceTargetIds} class="cursor-pointer" />
-                  {p.name}
-                </label>
-              {:else}
-                <span class="text-2xs text-muted-foreground italic">No active teams in your department yet.</span>
-              {/each}
-            </div>
+            <fieldset class="border border-border rounded-md p-3 bg-muted/30 m-0">
+              <legend class="text-xs font-bold text-foreground px-1">Select teams</legend>
+              <div class="flex flex-col gap-1.5 mt-1">
+                {#each activeProjects as p (p.id)}
+                  <label class="flex items-center gap-2.5 text-xs font-semibold text-muted-foreground cursor-pointer">
+                    <input type="checkbox" value={p.id} bind:group={announceTargetIds} />
+                    <span class="min-w-0 truncate text-foreground">{p.name}</span>
+                  </label>
+                {:else}
+                  <p class="text-2xs text-muted-foreground">No active teams in your department yet.</p>
+                {/each}
+              </div>
+            </fieldset>
           {/if}
 
-          <div class="flex flex-col gap-1.5">
-            <label for="ann-title" class="text-xs font-semibold text-foreground">Announcement Title</label>
-            <input 
+          <div class="field">
+            <label for="ann-title" class="field-label">Title</label>
+            <input
               id="ann-title"
-              type="text" 
-              placeholder="e.g. Mid-term source code submission notice" 
+              type="text"
+              placeholder="e.g. Mid-term source code submission notice"
               bind:value={announceTitle}
               required
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none"
+              class="field-input"
             />
           </div>
 
-          <div class="flex flex-col gap-1.5">
-            <label for="ann-content" class="text-xs font-semibold text-foreground">Notice Content</label>
-            <textarea 
+          <div class="field">
+            <label for="ann-content" class="field-label">Notice</label>
+            <textarea
               id="ann-content"
-              placeholder="Write announcement details..." 
+              placeholder="Write the announcement details…"
               bind:value={announceContent}
               required
-              rows="4"
-              class="w-full px-4 py-2.5 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none resize-none"
+              rows="5"
+              class="field-textarea"
             ></textarea>
           </div>
 
-          <div class="flex justify-end gap-2 mt-2">
-            <Button type="submit" variant="primary" size="sm">Broadcast Announcement</Button>
+          <div class="flex items-center justify-between gap-3 border-t border-border pt-3">
+            <p class="text-2xs text-muted-foreground" role="status" aria-live="polite">
+              Reaching <span class="font-bold text-foreground tabular">{recipientCount}</span>
+              student{recipientCount === 1 ? '' : 's'}
+            </p>
+            <Button type="submit" variant="primary" size="sm" loading={submitting} disabled={!canSubmit}>
+              <Send class="w-3.5 h-3.5" />
+              Broadcast
+            </Button>
           </div>
         </form>
       </Card>
 
-      <!-- Broadcasted Announcements list -->
-      <div class="lg:col-span-2 flex flex-col gap-6">
-        <Card>
-          <h3 class="text-lg font-bold text-foreground border-b border-border/40 pb-2 mb-4">Published Announcements History</h3>
-          
-          <div class="flex flex-col gap-3">
-            {#each announcements as ann}
-              <div class="p-4 border rounded-md bg-card flex flex-col gap-2">
-                <div class="flex justify-between items-start">
-                  <span class="text-sm font-bold text-foreground">{ann.title}</span>
-                  <Badge variant={ann.targetType === 'all' ? 'primary' : 'info'}>
-                    {ann.targetType === 'all' ? 'All Assigned' : 'Specific Teams'}
+      <div class="lg:col-span-2">
+        <Card title="Published history">
+          <ul class="flex flex-col gap-2.5">
+            {#each announcements as ann (ann.id)}
+              <li class="p-4 border border-border rounded-md">
+                <div class="flex justify-between items-start gap-3">
+                  <h3 class="text-sm font-bold text-foreground">{ann.title}</h3>
+                  <Badge variant={ann.targetType === 'all' ? 'primary' : 'info'} size="sm" class="shrink-0">
+                    {ann.targetType === 'all' ? 'All students' : `${ann.targetIds.length} team(s)`}
                   </Badge>
                 </div>
-                <p class="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{ann.content}</p>
-                
-                <div class="flex justify-between items-center text-3xs text-muted-foreground mt-2 border-t border-border/40 pt-2 font-semibold">
-                  <span>Published by: {ann.facultyName}</span>
-                  <span>{new Date(ann.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
+                <p class="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap mt-2">
+                  {ann.content}
+                </p>
+                <p class="flex justify-between items-center gap-3 text-3xs text-muted-foreground mt-3 pt-2.5 border-t border-border">
+                  <span>{ann.facultyName}</span>
+                  <time class="tabular" datetime={ann.createdAt}>
+                    {new Date(ann.createdAt).toLocaleString()}
+                  </time>
+                </p>
+              </li>
             {:else}
-              <div class="py-8 text-center text-xs text-muted-foreground italic">No broadcast announcements published yet.</div>
+              <li>
+                <EmptyState
+                  icon={Megaphone}
+                  title="No announcements published"
+                  description="Anything you broadcast appears here, and lands on the dashboard of every student it reaches."
+                />
+              </li>
             {/each}
-          </div>
+          </ul>
         </Card>
       </div>
     </div>

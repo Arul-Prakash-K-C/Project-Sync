@@ -7,25 +7,30 @@
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
+  import PageHeader from '$lib/components/ui/PageHeader.svelte';
+  import EmptyState from '$lib/components/ui/EmptyState.svelte';
 
   let entries = $state<AuditLogEntry[]>([]);
   let filterType = $state<'all' | AuditLogEntry['targetType']>('all');
+  let loaded = $state(false);
 
   onMount(() => {
     if (auth.user) {
       entries = db.getAuditLog(auth.user.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     }
+    loaded = true;
   });
 
   const filtered = $derived(filterType === 'all' ? entries : entries.filter((e) => e.targetType === filterType));
 
-  const typeBadge: Record<AuditLogEntry['targetType'], 'primary' | 'success' | 'warning' | 'info' | 'secondary'> = {
-    project: 'primary',
-    milestone: 'warning',
-    weekly_report: 'success',
-    announcement: 'info',
-    feedback: 'secondary'
-  };
+  const typeBadge: Record<AuditLogEntry['targetType'], 'primary' | 'success' | 'warning' | 'info' | 'secondary'> =
+    {
+      project: 'primary',
+      milestone: 'warning',
+      weekly_report: 'success',
+      announcement: 'info',
+      feedback: 'secondary'
+    };
 
   function exportLog() {
     if (filtered.length === 0) return;
@@ -41,67 +46,102 @@
   }
 </script>
 
+<svelte:head>
+  <title>Activity Log — TeamForge</title>
+</svelte:head>
+
 {#if auth.user}
-  <div class="flex flex-col gap-8 text-left">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-4">
-      <div>
-        <h2 class="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-          <History class="w-7 h-7 text-primary" />
-          Activity Log
-        </h2>
-        <p class="text-sm text-muted-foreground mt-1">A record of your supervisory actions — approvals, milestone changes, reviews, feedback, and announcements.</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <select
-          bind:value={filterType}
-          class="px-3 py-2 rounded-md border border-border bg-background text-sm text-foreground focus:outline-none cursor-pointer"
-        >
-          <option value="all">All Actions</option>
-          <option value="project">Project Approvals</option>
+  <div class="flex flex-col gap-6 max-w-6xl">
+    <PageHeader
+      title="Activity log"
+      icon={History}
+      description="A record of your supervisory actions — approvals, milestone changes, reviews, feedback and announcements."
+    >
+      {#snippet actions()}
+        <label for="log-filter" class="sr-only">Filter by action type</label>
+        <select id="log-filter" bind:value={filterType} class="field-select w-48">
+          <option value="all">All actions</option>
+          <option value="project">Project approvals</option>
           <option value="milestone">Milestones</option>
-          <option value="weekly_report">Weekly Reports</option>
+          <option value="weekly_report">Weekly reports</option>
           <option value="feedback">Feedback</option>
           <option value="announcement">Announcements</option>
         </select>
-        <Button variant="outline" size="sm" onclick={exportLog} disabled={filtered.length === 0}>
+        <Button variant="outline" onclick={exportLog} disabled={filtered.length === 0}>
           <FileDown class="w-4 h-4" />
           Export CSV
         </Button>
-      </div>
-    </div>
+      {/snippet}
+    </PageHeader>
 
-    <Card class="p-0 overflow-hidden border border-border">
-      {#if filtered.length === 0}
-        <div class="py-16 flex flex-col items-center justify-center text-center">
-          <History class="w-12 h-12 text-muted-foreground/30 mb-3" />
-          <p class="text-sm font-bold text-muted-foreground">No activity recorded yet</p>
-          <p class="text-xs text-muted-foreground/60 max-w-xs mt-1">Actions you take across approvals, milestones, reviews, feedback, and announcements will show up here.</p>
+    <Card flush>
+      {#if !loaded}
+        <div class="p-5 flex flex-col gap-3" aria-busy="true">
+          {#each { length: 5 } as _, i (i)}
+            <div class="skeleton h-9 w-full"></div>
+          {/each}
+        </div>
+      {:else if filtered.length === 0}
+        <div class="p-5">
+          <EmptyState
+            icon={History}
+            title={entries.length === 0 ? 'No activity recorded yet' : 'Nothing of this type'}
+            description={entries.length === 0
+              ? 'Approvals, milestone edits, review decisions, feedback and announcements you make are logged here automatically.'
+              : 'No entries match this filter. Switch back to "All actions" to see the full history.'}
+          />
         </div>
       {:else}
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
+        <div class="table-scroll hidden sm:block">
+          <table class="data-table">
+            <caption class="sr-only">Your supervisory actions, most recent first</caption>
             <thead>
-              <tr class="border-b border-border bg-muted/30 text-3xs font-black uppercase tracking-wider text-muted-foreground">
-                <th class="p-4">When</th>
-                <th class="p-4">Action</th>
-                <th class="p-4">Type</th>
-                <th class="p-4">Target</th>
+              <tr>
+                <th scope="col">When</th>
+                <th scope="col">Action</th>
+                <th scope="col">Type</th>
+                <th scope="col">Target</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-border text-xs">
-              {#each filtered as e}
-                <tr class="hover:bg-muted/10 transition-colors">
-                  <td class="p-4 text-muted-foreground whitespace-nowrap">{new Date(e.createdAt).toLocaleString()}</td>
-                  <td class="p-4 font-bold text-foreground">{e.action}</td>
-                  <td class="p-4">
-                    <Badge variant={typeBadge[e.targetType]} class="capitalize">{e.targetType.replace('_', ' ')}</Badge>
+            <tbody>
+              {#each filtered as e (e.id)}
+                <tr>
+                  <td class="text-xs text-muted-foreground whitespace-nowrap tabular">
+                    <time datetime={e.createdAt}>{new Date(e.createdAt).toLocaleString()}</time>
                   </td>
-                  <td class="p-4 text-muted-foreground truncate max-w-sm">{e.targetLabel ?? '—'}</td>
+                  <td class="font-semibold text-foreground">{e.action}</td>
+                  <td>
+                    <Badge variant={typeBadge[e.targetType]} size="sm" class="capitalize">
+                      {e.targetType.replace('_', ' ')}
+                    </Badge>
+                  </td>
+                  <td class="text-xs text-muted-foreground max-w-sm truncate">{e.targetLabel ?? '—'}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
         </div>
+
+        <!-- Four columns of prose do not fit a phone; the same entries become a
+             stacked feed where the action leads. -->
+        <ul class="sm:hidden divide-y divide-border">
+          {#each filtered as e (e.id)}
+            <li class="p-4">
+              <div class="flex items-start justify-between gap-3">
+                <p class="text-sm font-semibold text-foreground">{e.action}</p>
+                <Badge variant={typeBadge[e.targetType]} size="sm" class="capitalize shrink-0">
+                  {e.targetType.replace('_', ' ')}
+                </Badge>
+              </div>
+              {#if e.targetLabel}
+                <p class="text-xs text-muted-foreground mt-1">{e.targetLabel}</p>
+              {/if}
+              <time class="block text-3xs text-muted-foreground mt-1.5 tabular" datetime={e.createdAt}>
+                {new Date(e.createdAt).toLocaleString()}
+              </time>
+            </li>
+          {/each}
+        </ul>
       {/if}
     </Card>
   </div>
