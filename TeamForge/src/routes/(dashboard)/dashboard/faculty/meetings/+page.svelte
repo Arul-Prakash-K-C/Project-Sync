@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Meeting } from '$lib/services/db';
+  import { newId } from '$lib/utils/id';
+  import { db, type Project, type Meeting, type AttendanceStatus } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { Plus, Calendar, Clock, MessageSquare, MapPin, AlertTriangle } from 'lucide-svelte';
+  import { Plus, Calendar, Clock, MessageSquare, MapPin, AlertTriangle, UserCheck } from 'lucide-svelte';
+  import Avatar from '$lib/components/ui/Avatar.svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -41,7 +43,9 @@
   function loadData() {
     if (auth.user) {
       projects = db.getProjects().filter((p) => p.department === auth.user!.department);
-      meetings = db.getMeetings();
+      // Only meetings for this supervisor's department's teams.
+      const projectIds = new Set(projects.map((p) => p.id));
+      meetings = db.getMeetings().filter((m) => projectIds.has(m.projectId));
 
       const activeP = projects.filter((p) => p.status === 'active');
       if (activeP.length > 0) {
@@ -92,7 +96,7 @@
         proj.members.forEach((member) => {
           db.saveNotifications([
             {
-              id: `notif_${Date.now()}_${member.userId}`,
+              id: newId('notif'),
               userId: member.userId,
               title: 'Review Meeting Rescheduled',
               description: `Meeting "${meetingTitle}" rescheduled for ${meetingDate} at ${meetingTime}.`,
@@ -118,7 +122,7 @@
         proj.members.forEach((member) => {
           db.saveNotifications([
             {
-              id: `notif_${Date.now()}_${member.userId}`,
+              id: newId('notif'),
               userId: member.userId,
               title: 'New Review Meeting Scheduled',
               description: `Supervisor scheduled a meeting: "${meetingTitle}" for ${meetingDate} at ${meetingTime}.`,
@@ -159,7 +163,7 @@
         proj.members.forEach((member) => {
           db.saveNotifications([
             {
-              id: `notif_${Date.now()}_${member.userId}`,
+              id: newId('notif'),
               userId: member.userId,
               title: 'Review Meeting Cancelled',
               description: `Meeting "${meet.title}" has been cancelled.`,
@@ -198,7 +202,7 @@
       proj.members.forEach((member) => {
         db.saveNotifications([
           {
-            id: `notif_${Date.now()}_${member.userId}`,
+            id: newId('notif'),
             userId: member.userId,
             title: 'New Categorized Feedback Added',
             description: `Your supervisor added feedback for category "${feedbackCategory}".`,
@@ -220,6 +224,60 @@
   }
 
   const today = new Date().toISOString().split('T')[0];
+
+  // ---------------------------------------------------------------- attendance
+  let attendanceDialogOpen = $state(false);
+  let attendanceMeeting = $state<Meeting | null>(null);
+  let attendanceDraft = $state<Record<string, AttendanceStatus>>({});
+
+  const attendanceOptions: { value: AttendanceStatus; label: string; tone: string }[] = [
+    { value: 'present', label: 'Present', tone: 'bg-success text-success-foreground border-success' },
+    { value: 'late', label: 'Late', tone: 'bg-warning text-warning-foreground border-warning' },
+    { value: 'excused', label: 'Excused', tone: 'bg-info text-info-foreground border-info' },
+    { value: 'absent', label: 'Absent', tone: 'bg-destructive text-destructive-foreground border-destructive' }
+  ];
+
+  const attendanceMembers = $derived(
+    attendanceMeeting ? (projects.find((p) => p.id === attendanceMeeting!.projectId)?.members ?? []) : []
+  );
+
+  function openAttendance(meet: Meeting) {
+    attendanceMeeting = meet;
+    const project = projects.find((p) => p.id === meet.projectId);
+    // Start from the saved register, defaulting everyone else to present.
+    attendanceDraft = Object.fromEntries(
+      (project?.members ?? []).map((m) => [m.userId, meet.attendance?.[m.userId] ?? 'present'])
+    );
+    attendanceDialogOpen = true;
+  }
+
+  function saveAttendance() {
+    if (!attendanceMeeting || !auth.user) return;
+    try {
+      db.recordAttendance(attendanceMeeting.id, { ...attendanceDraft });
+      const absent = Object.values(attendanceDraft).filter((v) => v === 'absent').length;
+      db.logAudit(
+        auth.user.id,
+        auth.user.name,
+        'Recorded meeting attendance',
+        'meeting',
+        attendanceMeeting.id,
+        `${attendanceMeeting.title} — ${attendanceMeeting.projectName}`
+      );
+      toast.success(absent > 0 ? `Attendance saved · ${absent} absent` : 'Attendance saved · full attendance');
+      attendanceDialogOpen = false;
+      loadData();
+    } catch (err) {
+      toast.error('Failed to save attendance');
+    }
+  }
+
+  function attendanceSummary(meet: Meeting) {
+    if (!meet.attendance) return null;
+    const values = Object.values(meet.attendance);
+    const attended = values.filter((v) => v === 'present' || v === 'late').length;
+    return `${attended}/${values.length} attended`;
+  }
 
   /** Soonest first — a scheduler is read in date order, not insertion order. */
   const sortedMeetings = $derived(
@@ -279,6 +337,9 @@
                   <h3 class="text-sm font-bold text-foreground">{meet.title}</h3>
                   {#if meet.date < today}
                     <Badge variant="secondary" size="sm">Past</Badge>
+                    {#if attendanceSummary(meet)}
+                      <Badge variant="outline" size="sm">{attendanceSummary(meet)}</Badge>
+                    {/if}
                   {:else}
                     <Badge variant="success" dot size="sm">Scheduled</Badge>
                   {/if}
@@ -298,7 +359,13 @@
                 </dl>
               </div>
 
-              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto flex-wrap justify-end">
+                {#if meet.date <= today}
+                  <Button variant={meet.attendance ? 'outline' : 'secondary'} size="sm" onclick={() => openAttendance(meet)}>
+                    <UserCheck class="w-3.5 h-3.5" />
+                    {meet.attendance ? 'Edit attendance' : 'Take attendance'}
+                  </Button>
+                {/if}
                 <Button variant="outline" size="sm" onclick={() => editMeeting(meet)}>Reschedule</Button>
                 <Button variant="ghost" size="sm" onclick={() => requestCancel(meet)}>Cancel</Button>
               </div>
@@ -451,5 +518,53 @@
   {#snippet footer()}
     <Button variant="outline" onclick={() => (cancelDialogOpen = false)}>Keep meeting</Button>
     <Button variant="danger" onclick={confirmCancel}>Cancel meeting</Button>
+  {/snippet}
+</Dialog>
+
+<!-- Attendance register -->
+<Dialog
+  bind:open={attendanceDialogOpen}
+  title="Attendance"
+  description={attendanceMeeting ? `${attendanceMeeting.title} · ${attendanceMeeting.projectName} · ${attendanceMeeting.date}` : ''}
+  onclose={() => (attendanceMeeting = null)}
+>
+  {#if attendanceMembers.length === 0}
+    <p class="text-sm text-muted-foreground">This team has no members to register.</p>
+  {:else}
+    <ul class="flex flex-col divide-y divide-border">
+      {#each attendanceMembers as member (member.userId)}
+        <li class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <span class="flex items-center gap-3 min-w-0">
+            <Avatar src={member.avatar} name={member.name} size="sm" />
+            <span class="text-sm font-semibold text-foreground truncate">{member.name}</span>
+          </span>
+          <fieldset class="flex gap-1">
+            <legend class="sr-only">Attendance for {member.name}</legend>
+            {#each attendanceOptions as opt (opt.value)}
+              <label
+                class="px-2.5 h-8 inline-flex items-center rounded-md border text-2xs font-semibold cursor-pointer transition-colors
+                  {attendanceDraft[member.userId] === opt.value
+                  ? opt.tone
+                  : 'border-border text-muted-foreground hover:bg-secondary'}"
+              >
+                <input
+                  type="radio"
+                  class="sr-only"
+                  name="att-{member.userId}"
+                  value={opt.value}
+                  bind:group={attendanceDraft[member.userId]}
+                />
+                {opt.label}
+              </label>
+            {/each}
+          </fieldset>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#snippet footer()}
+    <Button variant="outline" onclick={() => (attendanceDialogOpen = false)}>Cancel</Button>
+    <Button variant="primary" onclick={saveAttendance} disabled={attendanceMembers.length === 0}>Save register</Button>
   {/snippet}
 </Dialog>

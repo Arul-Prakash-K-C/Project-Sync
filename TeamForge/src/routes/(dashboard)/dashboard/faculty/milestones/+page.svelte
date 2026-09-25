@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import { db, type Project, type Milestone } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { Calendar, Trash2, Pencil, Lock, Unlock, Clock, CheckCircle2, Circle } from 'lucide-svelte';
@@ -68,7 +69,7 @@
         editingMilestoneId = null;
       } else {
         const newM: Milestone = {
-          id: `m_${Date.now()}`,
+          id: newId('m'),
           title: milestoneTitle,
           deadline: milestoneDeadline || new Date().toISOString().split('T')[0],
           completed: false,
@@ -87,7 +88,7 @@
         proj.members.forEach((member) => {
           db.saveNotifications([
             {
-              id: `notif_${Date.now()}_${member.userId}`,
+              id: newId('notif'),
               userId: member.userId,
               title: 'New Milestone Assigned',
               description: `A new milestone "${milestoneTitle}" has been added to project "${proj.name}".`,
@@ -190,7 +191,7 @@
       proj.members.forEach((member) => {
         db.saveNotifications([
           {
-            id: `notif_${Date.now()}_${member.userId}`,
+            id: newId('notif'),
             userId: member.userId,
             title: 'Milestone Deadline Extended',
             description: `Deadline for "${milestone.title}" has been updated to ${extendDeadline}.`,

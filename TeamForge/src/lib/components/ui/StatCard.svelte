@@ -28,12 +28,12 @@
   const Icon = $derived(icon);
 
   const tones = {
-    neutral: 'bg-secondary text-foreground',
-    accent: 'bg-accent/12 text-accent',
-    success: 'bg-success/12 text-success',
-    warning: 'bg-warning/12 text-warning',
-    danger: 'bg-destructive/12 text-destructive',
-    info: 'bg-info/12 text-info'
+    neutral: 'text-muted-foreground',
+    accent: 'text-accent',
+    success: 'text-success',
+    warning: 'text-warning',
+    danger: 'text-destructive',
+    info: 'text-info'
   };
 </script>
 
@@ -45,12 +45,12 @@
 <svelte:element
   this={href ? 'a' : 'div'}
   href={href || undefined}
-  class="rounded-lg border border-border bg-card p-4 flex items-start gap-3.5 shadow-e1
-    {href ? 'transition-[box-shadow,border-color] hover:shadow-e2 hover:border-accent/30' : ''}
+  class="rounded-lg border border-border bg-card p-4 flex items-start gap-3 transition-[box-shadow,border-color,transform] duration-300
+    {href ? 'hover:shadow-e2 hover:border-accent/30 hover:-translate-y-0.5' : ''}
     {className}"
 >
   {#if Icon}
-    <div class="w-9 h-9 rounded-md flex items-center justify-center shrink-0 {tones[tone]}" aria-hidden="true">
+    <div class="w-5 h-5 mt-0.5 flex items-center justify-center shrink-0 {tones[tone]}" aria-hidden="true">
       <Icon class="w-4.5 h-4.5" />
     </div>
   {/if}

@@ -55,9 +55,10 @@
   --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-shimmer: shimmer 1.4s ease-in-out infinite;
 
-  /* One elevation ramp, used everywhere. e1 = resting card, e2 = raised or
-     hovered, e3 = overlays that float above the page. */
-  --shadow-e1: 0 1px 2px rgba(18, 21, 28, 0.05);
+  /* One elevation ramp, used everywhere. e1 = resting surface (flat — the
+     minimal look relies on hairlines, not shadows), e2 = raised or hovered,
+     e3 = overlays that float above the page. */
+  --shadow-e1: 0 0 #0000;
   --shadow-e2: 0 1px 2px rgba(18, 21, 28, 0.04), 0 6px 16px -10px rgba(18, 21, 28, 0.18);
   --shadow-e3: 0 2px 4px rgba(18, 21, 28, 0.06), 0 16px 40px -16px rgba(18, 21, 28, 0.28);
 
@@ -102,8 +103,8 @@
   --warning-foreground: #FFFFFF;
   --info: #3A5171;
   --info-foreground: #FFFFFF;
-  --border: #DEE2E8;
-  --input: #DEE2E8;
+  --border: #E3E6EB;
+  --input: #D9DDE3;
   --ring: #A8481B;
   --radius: 0.5rem;
 }
@@ -136,7 +137,7 @@
   --input: #262B35;
   --ring: #E88A50;
 
-  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-e1: 0 0 #0000;
   --shadow-e2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 6px 16px -10px rgba(0, 0, 0, 0.7);
   --shadow-e3: 0 2px 4px rgba(0, 0, 0, 0.4), 0 16px 40px -16px rgba(0, 0, 0, 0.85);
 }
@@ -463,9 +464,101 @@ summary:focus-visible,
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.line-clamp-1 { -webkit-line-clamp: 1; }
-.line-clamp-2 { -webkit-line-clamp: 2; }
-.line-clamp-3 { -webkit-line-clamp: 3; }
+.line-clamp-1 { -webkit-line-clamp: 1; line-clamp: 1; }
+.line-clamp-2 { -webkit-line-clamp: 2; line-clamp: 2; }
+.line-clamp-3 { -webkit-line-clamp: 3; line-clamp: 3; }
+
+/* ------------------------------------------------------------------ motion
+   One easing curve for the whole app: quick to start, long soft landing. */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Scroll reveal (see `use:reveal`). */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+}
+.reveal[data-revealed] {
+  opacity: 1;
+  transform: none;
+}
+@media print {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Pointer tilt (see `use:tilt`). */
+.tilt {
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+  transition: transform 0.35s var(--ease-out), box-shadow 0.25s ease, border-color 0.25s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+  background-image: radial-gradient(
+    420px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    color-mix(in srgb, var(--accent) 7%, transparent),
+    transparent 60%
+  );
+}
+
+/* Page transitions (View Transitions API, wired in the root layout). Chrome
+   stays put; only the page content cross-fades with a small rise. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(root) {
+  animation-name: vt-out;
+}
+::view-transition-new(root) {
+  animation-name: vt-in;
+}
+::view-transition-group(app-sidebar),
+::view-transition-group(app-header) {
+  animation: none;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Entrance used by the dashboard content column when view transitions are unavailable. */
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.page-in {
+  animation: page-in 0.35s var(--ease-out) both;
+}
+
+/* Hairline under display headings on the landing page. */
+.rule-accent {
+  height: 1px;
+  background: linear-gradient(to right, var(--accent), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

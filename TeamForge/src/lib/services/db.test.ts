@@ -36,9 +36,20 @@ describe('DatabaseService storage layer', () => {
 
   it('creates and updates a project', () => {
     const owner = db.getUsers()[0];
-    const project = db.createProject('New Project', 'A description', owner.department, owner);
+    const project = db.createProject(
+      {
+        name: 'New Project',
+        description: 'A description',
+        department: owner.department,
+        requiredSkills: ['Svelte'],
+        teamSize: 3,
+        mentorId: 'faculty_evelyn'
+      },
+      owner
+    );
     expect(project.status).toBe('pending');
     expect(project.members).toHaveLength(1);
+    expect(project.mentorName).toBe('Dr. Evelyn Sterling');
 
     const updated = db.updateProject(project.id, { status: 'active' });
     expect(updated.status).toBe('active');

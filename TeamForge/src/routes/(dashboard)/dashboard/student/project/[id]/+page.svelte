@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import {
     db,
     type Project,
@@ -20,6 +21,7 @@
     UserPlus,
     Plus,
     CheckCircle2,
+    Check,
     Circle,
     Calendar,
     FileText,
@@ -198,7 +200,7 @@
     if (!project || !milestoneTitle) return;
     try {
       const newM: Milestone = {
-        id: `m_${Date.now()}`,
+        id: newId('m'),
         title: milestoneTitle,
         deadline: milestoneDeadline || new Date().toISOString().split('T')[0],
         completed: false
@@ -213,6 +215,38 @@
       toast.error(err.message || 'Failed to add milestone');
     }
   }
+
+  // ------------------------------------------------ team size, skills, mentor
+  /** Open places left, counting outstanding invitations. `null` = no limit (legacy project). */
+  const seatsLeft = $derived(project ? db.openSeats(project) : null);
+  const mentor = $derived(project?.mentorId ? db.getUser(project.mentorId) : undefined);
+
+  /** Which required skills someone on the team already has. */
+  const skillCoverage = $derived.by(() => {
+    if (!project?.requiredSkills?.length) return [];
+    const teamSkills = new Set(
+      project.members.flatMap((m) => db.getUser(m.userId)?.skills ?? []).map((s) => s.toLowerCase())
+    );
+    return project.requiredSkills.map((skill) => ({ skill, covered: teamSkills.has(skill.toLowerCase()) }));
+  });
+  const missingSkills = $derived(skillCoverage.filter((c) => !c.covered).map((c) => c.skill));
+
+  /**
+   * Classmates worth inviting: available students, not already on or invited
+   * to this team, ranked by how many still-missing skills they bring.
+   */
+  const inviteSuggestions = $derived.by(() => {
+    if (!project || missingSkills.length === 0) return [];
+    const taken = new Set([...project.members.map((m) => m.userId), ...project.pendingInvites]);
+    const wanted = missingSkills.map((s) => s.toLowerCase());
+    return db
+      .getUsers()
+      .filter((u) => u.role === 'student' && u.availability && !taken.has(u.id))
+      .map((u) => ({ user: u, brings: u.skills.filter((s) => wanted.includes(s.toLowerCase())) }))
+      .filter((c) => c.brings.length > 0)
+      .sort((a, b) => b.brings.length - a.brings.length)
+      .slice(0, 3);
+  });
 
   function handleInvite(e: SubmitEvent) {
     e.preventDefault();
@@ -328,7 +362,14 @@
         inferFileCategory(selectedFile),
         auth.user
       );
-      await storeFileBlob(newFile.id, selectedFile);
+      try {
+        await storeFileBlob(newFile.id, selectedFile);
+      } catch (uploadErr) {
+        // The bytes never arrived — drop the record so the list doesn't offer
+        // a file that can't be downloaded.
+        db.saveFiles(db.getFiles().filter((f) => f.id !== newFile.id));
+        throw uploadErr;
+      }
       toast.success(`"${selectedFile.name}" uploaded successfully`);
       selectedFile = null;
       fileDialogOpen = false;
@@ -403,9 +444,15 @@
       description={project.description}
     >
       {#snippet actions()}
-        <Button variant="outline" size="sm" onclick={() => (inviteDialogOpen = true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => (inviteDialogOpen = true)}
+          disabled={seatsLeft === 0}
+          title={seatsLeft === 0 ? 'Every place on the team is filled or invited' : undefined}
+        >
           <UserPlus class="w-3.5 h-3.5" />
-          Invite teammates
+          {seatsLeft === 0 ? 'Team full' : 'Invite teammates'}
         </Button>
       {/snippet}
     </PageHeader>
@@ -496,6 +543,29 @@
             <p class="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
               {project.description}
             </p>
+            {#if skillCoverage.length > 0}
+              <div class="mt-5 pt-4 border-t border-border">
+                <div class="flex items-center justify-between gap-3">
+                  <h4 class="eyebrow">Required skills</h4>
+                  <span class="text-2xs text-muted-foreground tabular">
+                    {skillCoverage.length - missingSkills.length}/{skillCoverage.length} covered by the team
+                  </span>
+                </div>
+                <ul class="flex flex-wrap gap-1.5 mt-2.5">
+                  {#each skillCoverage as c (c.skill)}
+                    <li
+                      class="inline-flex items-center gap-1 h-6 px-2 rounded-sm text-2xs font-semibold
+                        {c.covered ? 'bg-success/12 text-success' : 'border border-dashed border-border text-muted-foreground'}"
+                      title={c.covered ? 'Someone on the team has this skill' : 'Nobody on the team has this yet'}
+                    >
+                      {#if c.covered}<Check class="w-3 h-3" aria-hidden="true" />{/if}
+                      {c.skill}
+                      <span class="sr-only">{c.covered ? '(covered)' : '(still needed)'}</span>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+            {/if}
           </Card>
 
           <Card title="Milestones">
@@ -587,7 +657,21 @@
           </Card>
         </div>
 
-        <Card title="Team members">
+        <Card
+          title="Team"
+          description={project.teamSize
+            ? `${project.members.length} of ${project.teamSize} members${seatsLeft ? ` · ${seatsLeft} open` : ''}`
+            : `${project.members.length} member${project.members.length === 1 ? '' : 's'}`}
+        >
+          {#if mentor || project.mentorName}
+            <div class="flex items-center gap-3 pb-3 mb-3 border-b border-border">
+              <Avatar src={mentor?.avatar ?? ''} name={mentor?.name ?? project.mentorName ?? ''} size="sm" />
+              <div class="flex flex-col min-w-0 leading-tight">
+                <span class="text-sm font-bold text-foreground truncate">{mentor?.name ?? project.mentorName}</span>
+                <span class="text-3xs text-accent uppercase tracking-wider font-semibold">Mentor</span>
+              </div>
+            </div>
+          {/if}
           <ul class="flex flex-col gap-3">
             {#each project.members as member (member.userId)}
               <li class="flex items-center gap-3">
@@ -599,6 +683,22 @@
               </li>
             {/each}
           </ul>
+
+          {#if project.teamSize}
+            <!-- Empty places are drawn so the team's shape is visible at a glance. -->
+            <div class="flex gap-1.5 mt-4" aria-hidden="true">
+              {#each { length: project.teamSize } as _, i (i)}
+                <span
+                  class="h-1.5 flex-1 rounded-full
+                    {i < project.members.length
+                    ? 'bg-accent'
+                    : i < project.members.length + project.pendingInvites.length
+                      ? 'bg-accent/35'
+                      : 'bg-border'}"
+                ></span>
+              {/each}
+            </div>
+          {/if}
 
           {#if project.pendingInvites.length > 0}
             <p class="text-2xs text-muted-foreground mt-4 pt-3 border-t border-border">
@@ -1188,12 +1288,33 @@
       />
       <p id="inv-email-hint" class="field-hint">
         They will see the invitation on their dashboard and can accept or decline.
+        {#if seatsLeft !== null}{seatsLeft} place{seatsLeft === 1 ? '' : 's'} left on the team.{/if}
       </p>
+
+      {#if inviteSuggestions.length > 0}
+        <div class="mt-3 pt-3 border-t border-border flex flex-col gap-2">
+          <p class="eyebrow">Brings a skill you still need</p>
+          {#each inviteSuggestions as s (s.user.id)}
+            <button
+              type="button"
+              onclick={() => (inviteEmail = s.user.email)}
+              class="flex items-center gap-3 p-2 rounded-md border text-left transition-colors cursor-pointer
+                {inviteEmail === s.user.email ? 'border-accent bg-accent/8' : 'border-border hover:bg-secondary'}"
+            >
+              <Avatar src={s.user.avatar} name={s.user.name} size="sm" />
+              <span class="min-w-0 leading-tight">
+                <span class="block text-xs font-bold text-foreground truncate">{s.user.name}</span>
+                <span class="block text-2xs text-muted-foreground truncate">{s.brings.join(' · ')}</span>
+              </span>
+            </button>
+          {/each}
+        </div>
+      {/if}
     </form>
 
     {#snippet footer()}
       <Button type="button" variant="outline" onclick={() => (inviteDialogOpen = false)}>Cancel</Button>
-      <Button type="submit" form="invite-project-form" variant="primary">Send invite</Button>
+      <Button type="submit" form="invite-project-form" variant="primary" disabled={seatsLeft === 0}>Send invite</Button>
     {/snippet}
   </Dialog>
 

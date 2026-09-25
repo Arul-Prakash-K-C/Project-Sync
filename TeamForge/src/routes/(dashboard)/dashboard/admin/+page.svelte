@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import { db, type User, type Department, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
+  import { isCloudMode } from '$lib/supabase/config';
   import {
     Users as UsersIcon,
     Building2,
@@ -144,6 +146,11 @@
       const text = await file.text();
       const parsed = JSON.parse(text);
       db.importAllData(parsed);
+      if (isCloudMode) {
+        // Let every imported record reach Supabase before the page reloads.
+        const { flushWrites } = await import('$lib/services/cloudSync');
+        await flushWrites();
+      }
       toast.success('Data imported — reloading...');
       setTimeout(() => window.location.reload(), 800);
     } catch (err) {
@@ -153,11 +160,11 @@
     }
   }
 
-  function confirmReset() {
+  async function confirmReset() {
     db.resetAllData();
     resetDialogOpen = false;
     toast.success('Demo data reset');
-    auth.logout();
+    await auth.logout();
     setTimeout(() => goto('/auth'), 400);
   }
 
@@ -167,7 +174,7 @@
     try {
       const allDeps = db.getDepartments();
       const newD: Department = {
-        id: `dept_${Date.now()}`,
+        id: newId('dept'),
         name: newDeptName,
         code: newDeptCode.toUpperCase(),
         headName: newDeptHead || 'Unassigned',
@@ -218,10 +225,14 @@
           tabindex="-1"
           onchange={handleImportFile}
         />
-        <Button variant="ghost" onclick={() => (resetDialogOpen = true)}>
-          <RotateCcw class="w-4 h-4" />
-          Reset data
-        </Button>
+        <!-- Resetting is a demo convenience. Against a shared cloud database it
+             would wipe every user's work, so it is not offered there. -->
+        {#if !isCloudMode}
+          <Button variant="ghost" onclick={() => (resetDialogOpen = true)}>
+            <RotateCcw class="w-4 h-4" />
+            Reset data
+          </Button>
+        {/if}
       {/snippet}
     </PageHeader>
 

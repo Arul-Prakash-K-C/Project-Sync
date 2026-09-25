@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import { db, type Project, type Announcement } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { Megaphone, Send } from 'lucide-svelte';
@@ -76,7 +77,7 @@
         proj.members.forEach((member) => {
           db.saveNotifications([
             {
-              id: `notif_${Date.now()}_${member.userId}`,
+              id: newId('notif'),
               userId: member.userId,
               title: 'New Announcement Posted',
               description: `Supervisor posted: "${announceTitle}"`,

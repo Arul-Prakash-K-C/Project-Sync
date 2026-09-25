@@ -1,15 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
   import { getDashboardRoute } from '$lib/utils/navigation';
 
-  onMount(() => {
-    if (auth.user) {
-      goto(getDashboardRoute(auth.user.role));
-    } else {
-      goto('/auth');
-    }
+  // Waits for a cloud session to finish restoring before deciding where to go.
+  $effect(() => {
+    if (auth.loading) return;
+    goto(auth.user ? getDashboardRoute(auth.user.role) : '/auth', { replaceState: true });
   });
 </script>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import { db, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { CheckSquare, AlertTriangle, X, Check, MessageSquare } from 'lucide-svelte';
@@ -25,11 +26,19 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      // Department proposals, plus any from elsewhere that name this person as mentor.
+      projects = db
+        .getProjects()
+        .filter((p) => p.department === auth.user!.department || p.mentorId === auth.user!.id);
     }
   }
 
-  let pendingProjects = $derived(projects.filter((p) => p.status === 'pending'));
+  /** Proposals naming this faculty member as mentor come first. */
+  let pendingProjects = $derived(
+    projects
+      .filter((p) => p.status === 'pending')
+      .sort((a, b) => Number(b.mentorId === auth.user?.id) - Number(a.mentorId === auth.user?.id))
+  );
 
   function approveProject(id: string) {
     try {
@@ -44,7 +53,7 @@
         const updated = [
           ...p.milestones,
           {
-            id: `m_${Date.now()}`,
+            id: newId('m'),
             title: 'System Requirements Specification',
             deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             completed: false
@@ -54,7 +63,7 @@
 
         db.saveNotifications([
           {
-            id: `notif_${Date.now()}`,
+            id: newId('notif'),
             userId: p.ownerId,
             title: 'Project Approved!',
             description: `Your project proposal "${p.name}" has been approved by ${auth.user!.name}.`,
@@ -82,7 +91,7 @@
 
         db.saveNotifications([
           {
-            id: `notif_${Date.now()}`,
+            id: newId('notif'),
             userId: p.ownerId,
             title: 'Project Proposal Rejected',
             description: `Your project proposal "${p.name}" was rejected by ${auth.user!.name}.`,
@@ -119,7 +128,7 @@
 
       db.saveNotifications([
         {
-          id: `notif_${Date.now()}`,
+          id: newId('notif'),
           userId: selectedProposalForComment.ownerId,
           title: 'Revision Requested on Proposal',
           description: `Supervisor "${auth.user!.name}" requested changes on "${selectedProposalForComment.name}": "${proposalCommentText}"`,
@@ -148,7 +157,7 @@
     <PageHeader
       title="Project approvals"
       icon={CheckSquare}
-      description="Student proposals from {auth.user.department} waiting on a decision. Approving one opens its workspace and seeds a first milestone."
+      description="Student proposals from {auth.user.department}, and any that name you as mentor. Approving one opens its workspace and seeds a first milestone."
     />
 
     {#if !loaded}
@@ -179,9 +188,15 @@
                     <p class="text-2xs text-muted-foreground mt-1">
                       Proposed by {p.ownerName} ·
                       <span class="tabular">{new Date(p.createdAt).toLocaleDateString()}</span>
+                      {#if p.department !== auth.user.department}· {p.department}{/if}
                     </p>
                   </div>
-                  <Badge variant="warning" dot class="shrink-0 capitalize">{p.status}</Badge>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    {#if p.mentorId === auth.user.id}
+                      <Badge variant="primary" size="sm">You're the mentor</Badge>
+                    {/if}
+                    <Badge variant="warning" dot class="capitalize">{p.status}</Badge>
+                  </div>
                 </div>
 
                 <!--
@@ -212,6 +227,35 @@
                   {p.description}
                 </p>
               </section>
+
+              <dl class="mt-4 grid sm:grid-cols-[1fr_auto_auto] gap-x-8 gap-y-4">
+                <div>
+                  <dt class="eyebrow">Required skills</dt>
+                  <dd class="mt-1.5">
+                    {#if p.requiredSkills?.length}
+                      <ul class="flex flex-wrap gap-1.5">
+                        {#each p.requiredSkills as skill (skill)}
+                          <li class="h-6 px-2 inline-flex items-center rounded-sm bg-secondary text-2xs font-semibold text-foreground">
+                            {skill}
+                          </li>
+                        {/each}
+                      </ul>
+                    {:else}
+                      <span class="text-2xs text-muted-foreground">Not specified</span>
+                    {/if}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="eyebrow">Mentor</dt>
+                  <dd class="text-sm font-semibold text-foreground mt-1.5">{p.mentorName ?? 'Not chosen'}</dd>
+                </div>
+                <div>
+                  <dt class="eyebrow">Team size</dt>
+                  <dd class="text-sm font-semibold text-foreground mt-1.5 tabular">
+                    {p.teamSize ? `${p.members.length} of ${p.teamSize}` : p.members.length}
+                  </dd>
+                </div>
+              </dl>
 
               <section class="mt-4">
                 <h3 class="eyebrow">Team ({p.members.length})</h3>

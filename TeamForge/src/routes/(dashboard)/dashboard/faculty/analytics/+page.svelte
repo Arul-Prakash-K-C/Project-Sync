@@ -52,6 +52,7 @@
           milestonesDone: p.milestones.filter((m) => m.completed).length,
           milestonesTotal: p.milestones.length,
           progress: calculateProgress(p),
+          attendance: db.getAttendanceSummary(p.id, member.userId),
           contribution: projectTaskCount > 0 ? Math.round((studentTasks.length / projectTaskCount) * 100) : 0
         };
       })
@@ -127,11 +128,22 @@
                     <span class="font-bold text-foreground">{r.tasksDone}</span>/{r.tasksTotal}
                   </td>
                   <td class="text-center">
-                    <!-- Attendance is not captured by the platform yet; showing a
-                         figure without saying so would read as a real record. -->
-                    <Badge variant="outline" size="sm" title="Attendance capture is not implemented yet">
-                      Not tracked
-                    </Badge>
+                    {#if r.attendance.rate === null}
+                      <!-- No register taken yet — say so rather than show a fake 100%. -->
+                      <Badge variant="outline" size="sm" title="No attendance recorded for this team's review meetings yet">
+                        No register
+                      </Badge>
+                    {:else}
+                      <span
+                        class="text-sm font-bold tabular {r.attendance.rate < 75 ? 'text-destructive' : 'text-foreground'}"
+                        title="{r.attendance.present} present · {r.attendance.late} late · {r.attendance.excused} excused · {r.attendance.absent} absent"
+                      >
+                        {r.attendance.rate}%
+                      </span>
+                      <span class="block text-3xs text-muted-foreground tabular">
+                        {r.attendance.recorded} meeting{r.attendance.recorded === 1 ? '' : 's'}
+                      </span>
+                    {/if}
                   </td>
                   <td class="text-right">
                     <span class="text-sm font-bold text-foreground tabular">{r.progress}%</span>
@@ -153,7 +165,7 @@
                 </div>
               </div>
 
-              <dl class="grid grid-cols-3 gap-3 mt-3">
+              <dl class="grid grid-cols-4 gap-3 mt-3">
                 <div>
                   <dt class="eyebrow">Milestones</dt>
                   <dd class="text-sm font-bold text-foreground tabular mt-0.5">
@@ -164,6 +176,12 @@
                   <dt class="eyebrow">Tasks</dt>
                   <dd class="text-sm font-bold text-foreground tabular mt-0.5">
                     {r.tasksDone}/{r.tasksTotal}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="eyebrow">Attended</dt>
+                  <dd class="text-sm font-bold text-foreground tabular mt-0.5">
+                    {r.attendance.rate === null ? '—' : `${r.attendance.rate}%`}
                   </dd>
                 </div>
                 <div>

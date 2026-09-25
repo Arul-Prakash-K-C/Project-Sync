@@ -52,7 +52,12 @@ export const ProjectSchema = z.object({
   milestones: z.array(MilestoneSchema),
   pendingInvites: z.array(z.string()),
   pendingRequests: z.array(z.string()),
-  createdAt: z.string()
+  createdAt: z.string(),
+  // Optional so projects created before these fields existed still load.
+  requiredSkills: z.array(z.string()).optional(),
+  teamSize: z.number().int().optional(),
+  mentorId: z.string().optional(),
+  mentorName: z.string().optional()
 });
 
 export const ProjectIdeaSchema = z.object({
@@ -174,7 +179,8 @@ export const MeetingSchema = z.object({
   time: z.string(),
   linkOrLocation: z.string(),
   status: z.enum(['scheduled', 'cancelled']),
-  createdAt: z.string()
+  createdAt: z.string(),
+  attendance: z.record(z.string(), z.enum(['present', 'late', 'excused', 'absent'])).optional()
 });
 
 export const AnnouncementSchema = z.object({
@@ -192,7 +198,7 @@ export const AuditLogEntrySchema = z.object({
   actorId: z.string(),
   actorName: z.string(),
   action: z.string(),
-  targetType: z.enum(['project', 'milestone', 'weekly_report', 'announcement', 'feedback']),
+  targetType: z.enum(['project', 'milestone', 'weekly_report', 'announcement', 'feedback', 'meeting']),
   targetId: z.string().optional(),
   targetLabel: z.string().optional(),
   createdAt: z.string()

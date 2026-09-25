@@ -4,6 +4,17 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<!-- Link-preview tags live here, not in a component: the app renders
+		     client-side and crawlers do not run JavaScript. Set og:image to an
+		     absolute URL on your production domain once it is known. -->
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="TeamForge" />
+		<meta property="og:title" content="TeamForge — Build teams on evidence, not luck" />
+		<meta property="og:description" content="Explainable teammate matching, one workspace per project, and faculty review in the same place." />
+		<meta property="og:image" content="/og-image.png" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
 		<script>
 			// Applied before first paint so a dark-theme visitor never sees a white
 			// flash while the app hydrates. The layout re-reads the same key on mount.

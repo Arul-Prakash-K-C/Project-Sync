@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
+  import { newId } from '$lib/utils/id';
   import { db, type Project, type WeeklyReport } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { Clock, ClipboardList, Check, RotateCcw } from 'lucide-svelte';
@@ -59,7 +60,7 @@
       if (p) {
         db.saveNotifications([
           {
-            id: `notif_${Date.now()}`,
+            id: newId('notif'),
             userId: report.submittedBy,
             title: status === 'approved' ? 'Weekly Report Approved' : 'Changes Requested on Weekly Report',
             // The week number was interpolated with single braces, so students

@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { onMount, getContext } from 'svelte';
+  import { onMount, getContext, untrack } from 'svelte';
+  import { fly, fade } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+  import { syncState } from '$lib/stores/sync.svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
@@ -27,7 +30,8 @@
     Notebook,
     FileText,
     History,
-    Trash2
+    Trash2,
+    RefreshCw
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -43,16 +47,62 @@
   let notifications = $state<Notification[]>([]);
   let unreadCount = $derived(notifications.filter((n) => !n.read).length);
 
-  onMount(() => {
-    // Auth route guard
-    if (!auth.user) {
-      toast.warning('Please sign in to access the dashboard.');
-      goto('/auth');
+  /*
+    Auth guard. It waits for the auth store to finish restoring a session —
+    in cloud mode that is asynchronous, and redirecting before it settles
+    would bounce a signed-in person to the sign-in page on every refresh.
+  */
+  let wasSignedIn = false;
+  /** Set during a deliberate sign-out, which navigates on its own. */
+  let signingOut = false;
+  $effect(() => {
+    if (auth.loading) return;
+    if (auth.user) {
+      wasSignedIn = true;
       return;
     }
+    // Side effects run untracked: showing a toast reads the toast list, and
+    // tracking it here would re-run this guard in a loop.
+    untrack(() => {
+      if (signingOut) return;
+      if (!wasSignedIn) toast.warning('Please sign in to access the dashboard.');
+      else if (auth.expiredNotice) toast.info('Your session expired. Please sign in again.');
+      goto('/auth');
+    });
+  });
+
+  /** Bumped to remount the page content with fresh data. */
+  let contentKey = $state(0);
+  const supportsViewTransitions = typeof document !== 'undefined' && 'startViewTransition' in document;
+
+  function refreshView() {
+    syncState.acknowledge();
+    loadNotifications();
+    contentKey++;
+  }
+
+  /*
+    Someone else changed shared data. If the person is mid-task (typing, or a
+    dialog is open) remounting would throw their work away, so the change waits
+    behind a "refresh" pill; otherwise the view quietly refreshes itself.
+  */
+  $effect(() => {
+    if (syncState.pendingCollections.length === 0) return;
+    const active = document.activeElement;
+    const busy =
+      document.querySelector('[role="dialog"]') ||
+      (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName));
+    if (!busy) untrack(refreshView);
+  });
+
+  onMount(() => {
     const storedRail = localStorage.getItem('teamforge_sidebar');
     if (storedRail === 'collapsed') sidebarOpen = false;
     loadNotifications();
+    // Notifications are cheap to re-read, so they always stay live.
+    return db.onChange((key) => {
+      if (key === 'notifications') loadNotifications();
+    });
   });
 
   function toggleSidebar() {
@@ -66,9 +116,10 @@
     }
   }
 
-  function handleLogout() {
-    auth.logout();
-    toast.success('Logged out successfully');
+  async function handleLogout() {
+    signingOut = true;
+    await auth.logout();
+    toast.success('Signed out');
     goto('/');
   }
 
@@ -84,11 +135,7 @@
   function deleteNotification(id: string) {
     try {
       notifications = notifications.filter((n) => n.id !== id);
-      if (auth.user) {
-        const all = db.getNotifications(auth.user.id);
-        const remaining = all.filter((n) => n.id !== id);
-        db.saveNotifications(remaining);
-      }
+      db.deleteNotification(id);
     } catch (err) {
       toast.error('Failed to delete notification');
     }
@@ -213,6 +260,7 @@
     <!-- Sidebar -->
     <aside
       aria-label="Primary"
+      style="view-transition-name: app-sidebar"
       class="fixed md:sticky top-0 inset-y-0 left-0 h-screen border-r border-border bg-card md:bg-card/70 md:chrome-blur
         transition-[width,transform] duration-200 z-40 md:z-20 flex flex-col shrink-0
         w-64 {sidebarOpen ? 'md:w-64' : 'md:w-18'}
@@ -336,6 +384,7 @@
     <!-- Main column -->
     <div class="flex-1 flex flex-col min-w-0">
       <header
+        style="view-transition-name: app-header"
         class="sticky top-0 z-20 h-16 border-b border-border chrome-blur flex items-center justify-between
           gap-3 px-4 sm:px-6 shrink-0"
       >
@@ -358,6 +407,29 @@
         </div>
 
         <div class="flex items-center gap-2">
+          {#if syncState.mode === 'cloud'}
+            <span
+              class="hidden sm:inline-flex items-center gap-1.5 px-2 h-7 rounded-full border border-border text-3xs font-semibold text-muted-foreground"
+              title={syncState.status === 'error' ? syncState.error : undefined}
+            >
+              <span
+                class="w-1.5 h-1.5 rounded-full
+                  {syncState.status === 'live'
+                  ? 'bg-success'
+                  : syncState.status === 'error'
+                    ? 'bg-destructive'
+                    : 'bg-warning animate-pulse'}"
+                aria-hidden="true"
+              ></span>
+              {syncState.status === 'live'
+                ? 'Live'
+                : syncState.status === 'offline'
+                  ? 'Offline'
+                  : syncState.status === 'error'
+                    ? 'Sync error'
+                    : 'Connecting'}
+            </span>
+          {/if}
           <button
             onclick={() => (notifOpen = true)}
             aria-label={unreadCount > 0
@@ -390,8 +462,28 @@
       </header>
 
       <main id="main-content" class="flex-1 p-4 sm:p-6 lg:p-8">
-        {@render children()}
+        {#key `${$page.url.pathname}#${contentKey}`}
+          <div class={supportsViewTransitions && contentKey === 0 ? '' : 'page-in'}>
+            {@render children()}
+          </div>
+        {/key}
       </main>
+
+      {#if syncState.pendingCollections.length > 0}
+        <div
+          class="fixed bottom-5 inset-x-0 flex justify-center pointer-events-none z-30"
+          transition:fly={{ y: 16, duration: 220, easing: cubicOut }}
+        >
+          <button
+            onclick={refreshView}
+            class="pointer-events-auto flex items-center gap-2 h-9 pl-3 pr-4 rounded-full bg-foreground text-background text-xs font-semibold
+              shadow-e3 hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            <RefreshCw class="w-3.5 h-3.5" aria-hidden="true" />
+            Your team made changes · Refresh
+          </button>
+        </div>
+      {/if}
     </div>
 
     <!-- Notifications drawer -->
@@ -399,11 +491,13 @@
       <button
         onclick={() => (notifOpen = false)}
         aria-label="Close notifications"
-        class="fixed inset-0 bg-black/50 z-40 cursor-pointer"
+        transition:fade={{ duration: 150 }}
+        class="fixed inset-0 bg-black/40 z-40 cursor-pointer"
       ></button>
 
       <aside
         aria-label="Notifications"
+        transition:fly={{ x: 400, duration: 260, easing: cubicOut, opacity: 1 }}
         class="fixed right-0 top-0 bottom-0 w-full sm:w-96 max-w-full bg-card border-l border-border
           shadow-e3 z-50 flex flex-col"
       >
