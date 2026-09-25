@@ -11,9 +11,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"supabase:link": "supabase link",
-		"db:push": "supabase db push",
-		"functions:deploy": "supabase functions deploy notification-email"
+		"supabase:link": "npx supabase link",
+		"db:push": "npx supabase db push",
+		"functions:deploy": "npx supabase functions deploy notification-email"
 	},
 	"devDependencies": {
 		"@electric-sql/pglite": "^0.5.8",
@@ -24,7 +24,6 @@
 		"@types/node": "^26.6.2",
 		"@types/three": "^0.186.0",
 		"jsdom": "^29.1.1",
-		"supabase": "^2.117.0",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.7.5",
 		"tailwindcss": "^4.3.0",

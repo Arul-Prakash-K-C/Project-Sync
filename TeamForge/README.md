@@ -75,7 +75,9 @@ Each collection is a table with its record in a `data jsonb` column. The fields 
    ```
 
    Only emails in `adminEmails` can register as admin. Faculty can self-register only if they're listed in `facultyEmails` or `allowFacultySignup` is true. Students can always register.
-6. Build and host the `build/` folder on any static host (Netlify, Vercel, Cloudflare Pages, etc.). Point every route to `index.html`, since the app is a single-page app.
+6. Deploy. The app is a static single-page app, so the host must send every route to `index.html`.
+   - **Vercel:** the repository root has a `vercel.json` that installs and builds inside `TeamForge/` and handles that routing. Leave the Vercel project's **Root Directory** at the repository root. Under Settings → Environment Variables, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; they're read at build time, so redeploy after adding them. Then add the Vercel URL to Supabase (Authentication → URL Configuration): set it as the Site URL, and add `<vercel-url>/auth` as a redirect URL.
+   - **Other hosts:** run `npm run build` and serve the `build/` folder with a fallback to `index.html`.
 
 The first person to sign in seeds the department list, which happens only once.
 
