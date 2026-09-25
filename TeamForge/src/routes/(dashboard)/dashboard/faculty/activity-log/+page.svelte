@@ -29,7 +29,8 @@
       milestone: 'warning',
       weekly_report: 'success',
       announcement: 'info',
-      feedback: 'secondary'
+      feedback: 'secondary',
+      meeting: 'info'
     };
 
   function exportLog() {
@@ -65,6 +66,7 @@
           <option value="milestone">Milestones</option>
           <option value="weekly_report">Weekly reports</option>
           <option value="feedback">Feedback</option>
+          <option value="meeting">Meetings</option>
           <option value="announcement">Announcements</option>
         </select>
         <Button variant="outline" onclick={exportLog} disabled={filtered.length === 0}>

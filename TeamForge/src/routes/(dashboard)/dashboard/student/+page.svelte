@@ -1,7 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Task, type Announcement, type Meeting } from '$lib/services/db';
+  import {
+    db,
+    TEAM_SIZE_MIN,
+    TEAM_SIZE_MAX,
+    type Project,
+    type Task,
+    type Announcement,
+    type Meeting,
+    type User, memberRoleLabel } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import {
     Plus,
@@ -27,6 +35,7 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import SkillInput from '$lib/components/ui/SkillInput.svelte';
 
   let projects = $state<Project[]>([]);
   let invitations = $state<Project[]>([]);
@@ -43,14 +52,56 @@
   let newProjectName = $state('');
   let newProjectDesc = $state('');
   let newProjectDept = $state('');
+  let newProjectSkills = $state<string[]>([]);
+  let newProjectTeamSize = $state(4);
+  let newProjectMentorId = $state('');
+  /** Only flag missing skills after someone has tried to submit. */
+  let triedSubmit = $state(false);
 
   const departments = db.getDepartments();
+  const teamSizes = Array.from({ length: TEAM_SIZE_MAX - TEAM_SIZE_MIN + 1 }, (_, i) => TEAM_SIZE_MIN + i);
+
+  let mentors = $state<User[]>([]);
+  /** Every skill already in use on the platform, for suggestions. */
+  let skillSuggestions = $state<string[]>([]);
+
+  /** Mentors from the chosen department first, then everyone else. */
+  const mentorGroups = $derived([
+    { label: `${newProjectDept || 'This department'}`, items: mentors.filter((m) => m.department === newProjectDept) },
+    { label: 'Other departments', items: mentors.filter((m) => m.department !== newProjectDept) }
+  ].filter((g) => g.items.length > 0));
+
+  const selectedMentor = $derived(mentors.find((m) => m.id === newProjectMentorId));
+
+  function resetCreateForm() {
+    newProjectName = '';
+    newProjectDesc = '';
+    newProjectSkills = [];
+    newProjectTeamSize = 4;
+    newProjectDept = auth.user?.department && departments.some((d) => d.name === auth.user!.department)
+      ? auth.user.department
+      : (departments[0]?.name ?? '');
+    newProjectMentorId = mentors.find((m) => m.department === newProjectDept)?.id ?? mentors[0]?.id ?? '';
+    triedSubmit = false;
+  }
+
+  function openCreateDialog() {
+    mentors = db.getMentors();
+    skillSuggestions = [
+      ...new Set([
+        ...db.getUsers().filter((u) => u.role === 'student').flatMap((u) => u.skills),
+        ...db.getProjectIdeas().flatMap((i) => i.requiredSkills),
+        ...db.getProjects().flatMap((p) => p.requiredSkills ?? [])
+      ])
+    ].sort((a, b) => a.localeCompare(b));
+    resetCreateForm();
+    createDialogOpen = true;
+  }
 
   onMount(() => {
     loadData();
-    if (departments.length > 0) {
-      newProjectDept = departments[0].name;
-    }
+    mentors = db.getMentors();
+    resetCreateForm();
     loaded = true;
   });
 
@@ -79,13 +130,28 @@
   function handleCreateProject(e: SubmitEvent) {
     e.preventDefault();
     if (!auth.user) return;
+    triedSubmit = true;
+    if (newProjectSkills.length === 0) {
+      toast.error('List at least one skill the team needs.');
+      document.getElementById('p-skills')?.focus();
+      return;
+    }
     submitting = true;
     try {
-      const newP = db.createProject(newProjectName, newProjectDesc, newProjectDept, auth.user);
-      toast.success(`Project "${newP.name}" created. Pending faculty approval.`);
+      const newP = db.createProject(
+        {
+          name: newProjectName,
+          description: newProjectDesc,
+          department: newProjectDept,
+          requiredSkills: newProjectSkills,
+          teamSize: newProjectTeamSize,
+          mentorId: newProjectMentorId
+        },
+        auth.user
+      );
+      toast.success(`"${newP.name}" sent to ${newP.mentorName} for approval.`);
       createDialogOpen = false;
-      newProjectName = '';
-      newProjectDesc = '';
+      resetCreateForm();
       loadData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create project');
@@ -146,7 +212,7 @@
       description="Your teams, the work assigned to you, and anything your supervisor needs you to see."
     >
       {#snippet actions()}
-        <Button variant="primary" onclick={() => (createDialogOpen = true)}>
+        <Button variant="primary" onclick={openCreateDialog}>
           <Plus class="w-4 h-4" />
           Create project
         </Button>
@@ -248,7 +314,7 @@
           description="Start a proposal of your own, or head to Team Finder to join a classmate who is already recruiting."
         >
           {#snippet action()}
-            <Button variant="primary" size="sm" onclick={() => (createDialogOpen = true)}>
+            <Button variant="primary" size="sm" onclick={openCreateDialog}>
               <Plus class="w-3.5 h-3.5" />
               Create project
             </Button>
@@ -274,7 +340,12 @@
                       {p.name}
                     </a>
                   </h3>
-                  <Badge variant={statusTone[p.status]} dot class="capitalize shrink-0">{p.status}</Badge>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    {#if p.ownerId === auth.user?.id}
+                      <Badge variant="primary" size="sm">Team leader</Badge>
+                    {/if}
+                    <Badge variant={statusTone[p.status]} dot class="capitalize">{p.status}</Badge>
+                  </div>
                 </div>
 
                 <p class="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
@@ -301,7 +372,7 @@
                         name={member.name}
                         size="sm"
                         class="ring-2 ring-card"
-                        title="{member.name} ({member.role})"
+                        title="{member.name} ({memberRoleLabel(p, member)})"
                       />
                     {/each}
                     {#if p.members.length > 4}
@@ -388,7 +459,8 @@
   <Dialog
     bind:open={createDialogOpen}
     title="Launch academic project"
-    description="Proposals go to your department's faculty for approval before the workspace opens."
+    description="Your chosen mentor reviews the proposal before the workspace opens."
+    size="lg"
   >
     <form id="create-project-form" onsubmit={handleCreateProject} class="flex flex-col gap-4">
       <div class="field">
@@ -420,13 +492,80 @@
       </div>
 
       <div class="field">
-        <label for="p-dept" class="field-label">Target department</label>
-        <select id="p-dept" bind:value={newProjectDept} class="field-select">
-          {#each departments as d (d.id)}
-            <option value={d.name}>{d.name}</option>
-          {/each}
-        </select>
+        <label for="p-skills" class="field-label">Required skills</label>
+        <SkillInput
+          id="p-skills"
+          bind:skills={newProjectSkills}
+          suggestions={skillSuggestions}
+          invalid={triedSubmit && newProjectSkills.length === 0}
+          describedby="p-skills-hint"
+        />
+        <p id="p-skills-hint" class="field-hint">
+          What the team needs to deliver this. Used to recommend teammates who fit.
+        </p>
       </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="field">
+          <label for="p-dept" class="field-label">Department</label>
+          <select id="p-dept" bind:value={newProjectDept} class="field-select">
+            {#each departments as d (d.id)}
+              <option value={d.name}>{d.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="p-mentor" class="field-label">Mentor</label>
+          {#if mentors.length === 0}
+            <p class="field-hint text-warning py-2.5">
+              No faculty are registered yet, so a mentor can't be chosen.
+            </p>
+          {:else}
+            <select id="p-mentor" bind:value={newProjectMentorId} required class="field-select">
+              {#each mentorGroups as group (group.label)}
+                <optgroup label={group.label}>
+                  {#each group.items as m (m.id)}
+                    <option value={m.id}>{m.name}</option>
+                  {/each}
+                </optgroup>
+              {/each}
+            </select>
+          {/if}
+        </div>
+      </div>
+
+      {#if selectedMentor}
+        <div class="flex items-center gap-3 p-3 rounded-md border border-border bg-secondary/40">
+          <Avatar src={selectedMentor.avatar} name={selectedMentor.name} size="sm" />
+          <div class="min-w-0 leading-tight">
+            <p class="text-xs font-bold text-foreground truncate">{selectedMentor.name}</p>
+            <p class="text-2xs text-muted-foreground truncate">
+              {selectedMentor.department}{selectedMentor.skills.length ? ` · ${selectedMentor.skills.slice(0, 3).join(', ')}` : ''}
+            </p>
+          </div>
+        </div>
+      {/if}
+
+      <fieldset class="field border-0 p-0 m-0">
+        <legend class="field-label p-0 mb-1.5">Team size <span class="font-normal text-muted-foreground">(including you)</span></legend>
+        <div class="grid grid-cols-7 gap-1.5">
+          {#each teamSizes as size (size)}
+            <label
+              class="h-9 flex items-center justify-center rounded-md border text-sm font-semibold tabular cursor-pointer transition-colors
+                {newProjectTeamSize === size
+                ? 'bg-accent text-accent-foreground border-accent'
+                : 'border-border text-muted-foreground hover:bg-secondary hover:text-foreground'}"
+            >
+              <input type="radio" name="team-size" value={size} bind:group={newProjectTeamSize} class="sr-only" />
+              {size}
+            </label>
+          {/each}
+        </div>
+        <p class="field-hint mt-1.5">
+          You can invite {newProjectTeamSize - 1} teammate{newProjectTeamSize - 1 === 1 ? '' : 's'}. Invitations stop once the team is full.
+        </p>
+      </fieldset>
 
       <div
         class="p-3 bg-warning/10 border border-warning/25 text-warning rounded-md flex gap-2.5 text-xs leading-relaxed"
@@ -440,7 +579,7 @@
 
     {#snippet footer()}
       <Button type="button" variant="outline" onclick={() => (createDialogOpen = false)}>Cancel</Button>
-      <Button type="submit" form="create-project-form" variant="primary" loading={submitting}>
+      <Button type="submit" form="create-project-form" variant="primary" loading={submitting} disabled={mentors.length === 0}>
         Submit proposal
       </Button>
     {/snippet}

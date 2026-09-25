@@ -1,5 +1,6 @@
 <script lang="ts">
   import { setContext, onMount } from 'svelte';
+  import { onNavigate } from '$app/navigation';
   import './layout.css';
   import favicon from '$lib/assets/favicon.svg';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -27,6 +28,32 @@
       return isDark;
     },
     toggleTheme
+  });
+
+  /*
+    Route changes cross-fade through the View Transitions API. The dashboard's
+    sidebar and header carry their own transition names, so they hold still
+    while only the page content moves. Browsers without the API navigate
+    instantly, and the dashboard falls back to a CSS entrance.
+  */
+  onNavigate((navigation) => {
+    if (!document.startViewTransition) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // A transition in a background tab is aborted by the browser; skip it.
+    if (document.hidden) return;
+    // Same-page hash jumps and query tweaks are not page changes.
+    if (navigation.from?.url.pathname === navigation.to?.url.pathname) return;
+
+    return new Promise((resolve) => {
+      const transition = document.startViewTransition(async () => {
+        resolve();
+        await navigation.complete;
+      });
+      // An aborted transition (tab hidden mid-way, rapid double navigation) is
+      // harmless — the navigation itself still happens — so don't report it.
+      transition.ready.catch(() => {});
+      transition.finished.catch(() => {});
+    });
   });
 
   onMount(() => {

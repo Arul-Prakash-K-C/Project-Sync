@@ -1,3 +1,18 @@
+import { isCloudMode, FILES_BUCKET } from '$lib/supabase/config';
+
+/*
+  File bytes live in IndexedDB in local mode and in Supabase Storage (bucket
+  `project-files`, path `files/<id>`) in cloud mode. Callers use the same three
+  functions either way.
+*/
+
+const objectPath = (id: string) => `files/${id}`;
+
+async function bucket() {
+  const { getSupabase } = await import('$lib/supabase/client');
+  return (await getSupabase()).storage.from(FILES_BUCKET);
+}
+
 const DB_NAME = 'teamforge_file_blobs';
 const STORE_NAME = 'blobs';
 
@@ -14,6 +29,18 @@ function openDb(): Promise<IDBDatabase> {
 
 /** Stores the raw file bytes for a ProjectFile record, keyed by its id. */
 export async function storeFileBlob(id: string, blob: Blob): Promise<void> {
+  if (isCloudMode) {
+    const { flushWrites } = await import('$lib/services/cloudSync');
+    // The storage policy only accepts bytes for a file whose `files` row
+    // already exists, so let that write land first.
+    await flushWrites();
+    const { error } = await (await bucket()).upload(objectPath(id), blob, {
+      contentType: blob.type || 'application/octet-stream',
+      upsert: false
+    });
+    if (error) throw error;
+    return;
+  }
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -24,6 +51,15 @@ export async function storeFileBlob(id: string, blob: Blob): Promise<void> {
 }
 
 export async function getFileBlob(id: string): Promise<Blob | undefined> {
+  if (isCloudMode) {
+    const { data, error } = await (await bucket()).download(objectPath(id));
+    if (error) {
+      // A seeded demo file has a record but no bytes.
+      if (/not.?found|404/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ''}`)) return undefined;
+      throw error;
+    }
+    return data ?? undefined;
+  }
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -34,6 +70,10 @@ export async function getFileBlob(id: string): Promise<Blob | undefined> {
 }
 
 export async function deleteFileBlob(id: string): Promise<void> {
+  if (isCloudMode) {
+    await (await bucket()).remove([objectPath(id)]);
+    return;
+  }
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');

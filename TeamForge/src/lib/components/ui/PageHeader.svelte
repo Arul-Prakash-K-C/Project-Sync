@@ -50,7 +50,7 @@
 
     <h1 class="font-display text-2xl sm:text-[1.75rem] leading-tight text-foreground flex items-center gap-2.5">
       {#if Icon}
-        <Icon class="w-6 h-6 text-accent shrink-0" aria-hidden="true" />
+        <Icon class="w-5 h-5 text-muted-foreground shrink-0" aria-hidden="true" />
       {/if}
       <span class="min-w-0">{title}</span>
     </h1>

@@ -32,7 +32,7 @@
 <div
   class="rounded-lg border border-border bg-card text-card-foreground shadow-e1
     {flush ? 'overflow-hidden' : 'p-5'}
-    {hoverable ? 'transition-[box-shadow,border-color] duration-200 hover:shadow-e2 hover:border-accent/30' : ''}
+    {hoverable ? 'transition-[box-shadow,border-color,transform] duration-300 hover:shadow-e2 hover:border-accent/30 hover:-translate-y-0.5' : ''}
     {className}"
   {...rest}
 >

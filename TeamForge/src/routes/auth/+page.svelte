@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { auth } from '$lib/stores/auth.svelte';
+  import { auth, PendingConfirmationError, PendingApprovalError } from '$lib/stores/auth.svelte';
   import { db } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { getDashboardRoute } from '$lib/utils/navigation';
+  import { evaluatePasswordStrength, type PasswordStrength } from '$lib/utils/password';
+  import { getRateLimitStatus, type RateLimitStatus } from '$lib/utils/rateLimiter';
   import {
     ArrowRight,
     Mail,
@@ -14,11 +16,12 @@
     Eye,
     EyeOff,
     AlertCircle,
-    Cpu,
-    Layers,
-    ShieldCheck
+    Clock,
+    ShieldAlert
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
+  import ForgeScene from '$lib/components/three/ForgeScene.svelte';
+  import { isCloudMode, cloudOptions } from '$lib/supabase/config';
   import Tabs from '$lib/components/ui/Tabs.svelte';
 
   let activeTab = $state('login');
@@ -37,16 +40,24 @@
 
   let showPassword = $state(false);
   let submitting = $state(false);
-  /*
-    Failures used to surface only as a toast that vanished after three seconds,
-    which is the worst possible place for "your password was wrong" — it is gone
-    before the person has re-read the field. The message now also stays put
-    above the form until the next attempt.
-  */
   let formError = $state('');
 
-  // Load Departments
-  const departments = db.getDepartments();
+  // Rate limit / lockout state
+  let lockoutStatus = $state<RateLimitStatus>({
+    locked: false,
+    remainingSeconds: 0,
+    failedAttempts: 0,
+    attemptsLeft: 5
+  });
+  let lockoutTimer: any = null;
+
+  // Password strength derived state
+  let passwordStrength = $derived<PasswordStrength>(
+    evaluatePasswordStrength(registerPassword)
+  );
+
+  // Departments arrive asynchronously in cloud mode, so keep them live.
+  let departments = $state(db.getDepartments());
 
   const roles: { value: 'student' | 'faculty' | 'admin'; label: string; hint: string }[] = [
     { value: 'student', label: 'Student', hint: 'Form teams, run projects' },
@@ -54,13 +65,37 @@
     { value: 'admin', label: 'Admin', hint: 'Manage the platform' }
   ];
 
+  /** Demo profiles only exist in local mode, or in a cloud deployment seeded with them. */
+  const showDemoProfiles = !isCloudMode || cloudOptions.seedDemo;
   const demoProfiles = [
     { label: 'Student', email: 'alex@teamforge.edu' },
     { label: 'Faculty', email: 'evelyn@teamforge.edu' },
     { label: 'Admin', email: 'admin@teamforge.edu' }
   ];
 
+  function updateLockout() {
+    if (loginEmail) {
+      lockoutStatus = getRateLimitStatus(loginEmail);
+    } else {
+      lockoutStatus = { locked: false, remainingSeconds: 0, failedAttempts: 0, attemptsLeft: 5 };
+    }
+  }
+
+  // Someone already signed in has no business on this page.
+  $effect(() => {
+    if (!auth.loading && auth.user && !submitting) goto(getDashboardRoute(auth.user.role), { replaceState: true });
+  });
+
   onMount(() => {
+    const stopDeptWatch = db.onChange((key) => {
+      if (key !== 'departments') return;
+      departments = db.getDepartments();
+      if (!registerDept && departments.length > 0) registerDept = departments[0].name;
+    });
+    if (auth.expiredNotice) {
+      formError = 'Your session expired after 24 hours. Please sign in again.';
+    }
+
     // Set active tab based on query param
     const tabParam = $page.url.searchParams.get('tab');
     if (tabParam === 'register') {
@@ -70,24 +105,62 @@
     if (departments.length > 0) {
       registerDept = departments[0].name;
     }
+
+    // Interval to refresh lockout countdown
+    lockoutTimer = setInterval(() => {
+      if (loginEmail) {
+        updateLockout();
+      }
+    }, 1000);
+
+    return stopDeptWatch;
   });
 
-  // Switching tabs should not carry a stale failure from the other form.
+  onDestroy(() => {
+    if (lockoutTimer) clearInterval(lockoutTimer);
+  });
+
   $effect(() => {
-    activeTab;
-    formError = '';
+    loginEmail;
+    updateLockout();
+  });
+
+  /** Neutral guidance (e.g. "waiting for approval") — not an error. */
+  let formNotice = $state('');
+
+  // Switching tabs clears stale errors
+  let lastTab = 'login';
+  $effect(() => {
+    if (activeTab !== lastTab) {
+      lastTab = activeTab;
+      formError = '';
+    }
   });
 
   async function handleLogin(e: SubmitEvent) {
     e.preventDefault();
     formError = '';
+    formNotice = '';
+    updateLockout();
+
+    if (lockoutStatus.locked) {
+      formError = `Account temporarily locked. Please wait ${lockoutStatus.remainingSeconds}s before retrying.`;
+      toast.error(formError);
+      return;
+    }
+
     submitting = true;
     try {
       const user = await auth.login(loginEmail, loginPassword);
       toast.success(`Welcome back, ${user.name}!`);
       goto(getDashboardRoute(user.role));
     } catch (err: any) {
+      if (err instanceof PendingApprovalError) {
+        formNotice = err.message;
+        return;
+      }
       formError = err.message || 'Login failed';
+      updateLockout();
       toast.error(formError);
     } finally {
       submitting = false;
@@ -102,6 +175,19 @@
       toast.error(formError);
       return;
     }
+
+    if (registerPassword.length < 8) {
+      formError = 'Password must be at least 8 characters long';
+      toast.error(formError);
+      return;
+    }
+
+    if (passwordStrength.score < 2) {
+      formError = 'Please choose a stronger password matching the complexity requirements';
+      toast.error(formError);
+      return;
+    }
+
     submitting = true;
     try {
       const user = await auth.register(
@@ -112,9 +198,17 @@
         registerDept,
         registerRole === 'student' ? registerYear : undefined
       );
-      toast.success('Registration successful!');
+      toast.success('Registration successful! Welcome to TeamForge.');
       goto(getDashboardRoute(user.role));
     } catch (err: any) {
+      if (err instanceof PendingConfirmationError || err instanceof PendingApprovalError) {
+        // Not a failure: the account is waiting on an email link or an admin.
+        toast.info(err.message, 8000);
+        loginEmail = registerEmail;
+        activeTab = 'login';
+        formNotice = err.message;
+        return;
+      }
       formError = err.message || 'Registration failed';
       toast.error(formError);
     } finally {
@@ -126,6 +220,7 @@
     loginEmail = email;
     loginPassword = 'demo1234';
     formError = '';
+    updateLockout();
   }
 </script>
 
@@ -134,73 +229,26 @@
 </svelte:head>
 
 <div class="min-h-screen grid lg:grid-cols-[1.05fr_1fr]">
-  <!--
-    Left rail carries the product's reason to exist. It is hidden below `lg`
-    rather than stacked, so a phone gets straight to the form instead of
-    scrolling past marketing to reach the password field.
-  -->
-  <aside
-    class="hidden lg:flex flex-col justify-between bg-grid bg-secondary/40 border-r border-border p-12 xl:p-16"
-  >
-    <a href="/" class="flex items-center gap-2.5 w-fit rounded-sm">
+  <!-- Left rail -->
+  <aside class="hidden lg:flex relative flex-col justify-between border-r border-border p-12 xl:p-14 overflow-hidden">
+    <a href="/" class="relative z-10 flex items-center gap-2.5 w-fit rounded-sm">
       <span
-        class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-sm"
+        class="chamfer w-8 h-8 bg-accent flex items-center justify-center text-accent-foreground font-display text-xs"
         aria-hidden="true">TF</span
       >
-      <span class="font-display text-lg text-foreground">TeamForge</span>
+      <span class="font-display text-base text-foreground">TeamForge</span>
     </a>
 
-    <div class="max-w-md">
-      <h2 class="font-display text-3xl xl:text-4xl leading-[1.15] text-foreground">
-        Build teams the way you build
-        <span class="text-accent">anything worth building</span>.
+    <ForgeScene class="absolute inset-x-8 top-[42%] -translate-y-1/2 h-[min(60vh,520px)]" controls={false} count={110} />
+
+    <div class="relative z-10 max-w-sm">
+      <h2 class="font-display text-3xl leading-[1.1] text-foreground">
+        Build teams on evidence, not luck.
       </h2>
-      <p class="mt-5 text-sm text-muted-foreground leading-relaxed">
-        Match with classmates on skills and standing, run the work on a shared board, and keep
-        faculty review in the same place as the project.
+      <p class="mt-4 text-sm text-muted-foreground leading-relaxed">
+        Explainable matching, one workspace per project, and faculty review in the same place.
       </p>
-
-      <ul class="mt-10 flex flex-col gap-5">
-        <li class="flex gap-3.5">
-          <span
-            class="w-9 h-9 rounded-md bg-accent/12 text-accent flex items-center justify-center shrink-0"
-            aria-hidden="true"><Cpu class="w-4.5 h-4.5" /></span
-          >
-          <div>
-            <p class="text-sm font-bold text-foreground">Explainable matching</p>
-            <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Every compatibility score shows the reasoning behind it.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-3.5">
-          <span
-            class="w-9 h-9 rounded-md bg-info/12 text-info flex items-center justify-center shrink-0"
-            aria-hidden="true"><Layers class="w-4.5 h-4.5" /></span
-          >
-          <div>
-            <p class="text-sm font-bold text-foreground">One workspace per project</p>
-            <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Milestones, tasks, threads, files and weekly reports together.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-3.5">
-          <span
-            class="w-9 h-9 rounded-md bg-success/12 text-success flex items-center justify-center shrink-0"
-            aria-hidden="true"><ShieldCheck class="w-4.5 h-4.5" /></span
-          >
-          <div>
-            <p class="text-sm font-bold text-foreground">Faculty in the loop</p>
-            <p class="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Approvals, reviews and feedback recorded against the work itself.
-            </p>
-          </div>
-        </li>
-      </ul>
     </div>
-
-    <p class="text-2xs text-muted-foreground">© 2026 TeamForge · Built for academic teams</p>
   </aside>
 
   <!-- Form column -->
@@ -208,10 +256,10 @@
     <div class="w-full max-w-md flex flex-col gap-6">
       <a href="/" class="flex items-center gap-2.5 self-center lg:hidden rounded-sm">
         <span
-          class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-sm"
+          class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-sm font-bold"
           aria-hidden="true">TF</span
         >
-        <span class="font-display text-lg text-foreground">TeamForge</span>
+        <span class="font-display text-lg text-foreground tracking-tight">TeamForge</span>
       </a>
 
       <Tabs
@@ -223,7 +271,34 @@
         bind:active={activeTab}
       />
 
-      {#if formError}
+      <!-- Lockout Alert Banner -->
+      {#if activeTab === 'login' && lockoutStatus.locked}
+        <div
+          role="alert"
+          class="flex items-start gap-3 p-3.5 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive"
+        >
+          <ShieldAlert class="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+          <div class="flex-1">
+            <p class="text-xs font-bold">Account Locked (Brute-force protection)</p>
+            <p class="text-xs mt-0.5 opacity-90 flex items-center gap-1.5">
+              <Clock class="w-3.5 h-3.5" />
+              Unlocks in <span class="font-mono font-bold text-sm">{lockoutStatus.remainingSeconds}s</span>
+            </p>
+          </div>
+        </div>
+      {/if}
+
+      {#if formNotice && !formError}
+        <div
+          role="status"
+          class="flex items-start gap-2.5 p-3 rounded-md border border-info/30 bg-info/8 text-info"
+        >
+          <Clock class="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <p class="text-xs font-semibold leading-relaxed">{formNotice}</p>
+        </div>
+      {/if}
+
+      {#if formError && (!lockoutStatus.locked || activeTab !== 'login')}
         <div
           role="alert"
           class="flex items-start gap-2.5 p-3 rounded-md border border-destructive/30 bg-destructive/8 text-destructive"
@@ -238,7 +313,7 @@
           <div>
             <h1 class="font-display text-xl text-foreground">Welcome back</h1>
             <p class="text-xs text-muted-foreground mt-1">
-              Sign in to coordinate with your teammates.
+              Sign in with your academic credentials.
             </p>
           </div>
 
@@ -276,8 +351,9 @@
                 placeholder="Your password"
                 bind:value={loginPassword}
                 required
+                disabled={lockoutStatus.locked}
                 aria-invalid={formError ? 'true' : undefined}
-                class="field-input field-icon pr-11"
+                class="field-input field-icon pr-11 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
@@ -295,12 +371,23 @@
             </div>
           </div>
 
-          <Button type="submit" variant="primary" class="w-full mt-1" loading={submitting}>
-            Sign in
-            <ArrowRight class="w-4 h-4" />
+          <Button
+            type="submit"
+            variant="primary"
+            class="w-full mt-1"
+            loading={submitting}
+            disabled={lockoutStatus.locked}
+          >
+            {#if lockoutStatus.locked}
+              Locked ({lockoutStatus.remainingSeconds}s)
+            {:else}
+              Sign in
+              <ArrowRight class="w-4 h-4" />
+            {/if}
           </Button>
 
           <!-- Quick Login Demos -->
+          {#if showDemoProfiles}
           <div class="mt-4 pt-5 border-t border-border">
             <p class="eyebrow text-center">Quick demo profiles</p>
             <div class="grid grid-cols-3 gap-2 mt-3">
@@ -315,8 +402,9 @@
                 </button>
               {/each}
             </div>
-            <p class="field-hint text-center mt-2">Fills the form — press Sign in to continue.</p>
+            <p class="field-hint text-center mt-2">Fills the form with demo password (<code class="font-mono text-2xs bg-secondary px-1 py-0.5 rounded">demo1234</code>).</p>
           </div>
+          {/if}
         </form>
       {:else}
         <form onsubmit={handleRegister} class="flex flex-col gap-4">
@@ -376,10 +464,10 @@
                 id="reg-password"
                 type={showPassword ? 'text' : 'password'}
                 autocomplete="new-password"
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 bind:value={registerPassword}
                 required
-                minlength="6"
+                minlength="8"
                 aria-describedby="reg-password-hint"
                 class="field-input field-icon pr-11"
               />
@@ -397,7 +485,32 @@
                 {/if}
               </button>
             </div>
-            <p id="reg-password-hint" class="field-hint">Minimum 6 characters.</p>
+
+            <!-- Strength meter: four segments and a single line saying what is still missing. -->
+            {#if registerPassword}
+              <div class="mt-1 flex flex-col gap-1.5" aria-live="polite">
+                <div class="grid grid-cols-4 gap-1" aria-hidden="true">
+                  {#each [1, 2, 3, 4] as seg (seg)}
+                    <span
+                      class="h-1 rounded-full transition-colors duration-300"
+                      style="background-color: {passwordStrength.score >= seg ? passwordStrength.color : 'var(--border)'}"
+                    ></span>
+                  {/each}
+                </div>
+                <p class="field-hint flex justify-between gap-3">
+                  <span>
+                    {#if passwordStrength.feedback.length > 0}
+                      Add: {passwordStrength.feedback.join(' · ').toLowerCase()}
+                    {:else}
+                      Meets every requirement
+                    {/if}
+                  </span>
+                  <span class="font-semibold shrink-0" style="color: {passwordStrength.color}">{passwordStrength.label}</span>
+                </p>
+              </div>
+            {:else}
+              <p id="reg-password-hint" class="field-hint">Minimum 8 characters with mixed case, numbers, or symbols.</p>
+            {/if}
           </div>
 
           <!-- Role Selector -->
@@ -426,15 +539,18 @@
             </div>
           </fieldset>
 
-          <!-- Department Selector -->
-          <div class="field">
-            <label for="reg-dept" class="field-label">Department</label>
-            <select id="reg-dept" bind:value={registerDept} class="field-select">
-              {#each departments as d (d.id)}
-                <option value={d.name}>{d.name}</option>
-              {/each}
-            </select>
-          </div>
+          <!-- Department: students and faculty belong to one (it scopes approvals,
+               analytics and matching); administrators run the whole platform. -->
+          {#if registerRole !== 'admin'}
+            <div class="field">
+              <label for="reg-dept" class="field-label">Department</label>
+              <select id="reg-dept" bind:value={registerDept} class="field-select">
+                {#each departments as d (d.id)}
+                  <option value={d.name}>{d.name}</option>
+                {/each}
+              </select>
+            </div>
+          {/if}
 
           {#if registerRole === 'student'}
             <!-- Academic Year -->

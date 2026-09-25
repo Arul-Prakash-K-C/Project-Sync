@@ -112,7 +112,7 @@
 
   function openInviteModal(user: User) {
     if (myProjects.length === 0) {
-      toast.warning('You must be a project manager of an active project to invite members.');
+      toast.warning('Only a team leader can invite — create a project (it must be approved) to lead a team.');
       return;
     }
     selectedUserForInvite = user;
@@ -123,7 +123,7 @@
     e.preventDefault();
     if (!selectedUserForInvite || !selectedProjectId) return;
     try {
-      db.inviteToProject(selectedProjectId, selectedUserForInvite.email);
+      db.inviteToProject(selectedProjectId, selectedUserForInvite.email, auth.user ?? undefined);
       toast.success(`Invitation sent to ${selectedUserForInvite.name}!`);
       inviteDialogOpen = false;
       selectedUserForInvite = null;
