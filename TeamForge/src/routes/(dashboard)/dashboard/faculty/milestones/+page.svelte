@@ -33,7 +33,7 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      projects = db.getSupervisedProjects(auth.user!);
       const activeP = projects.filter((p) => p.status === 'active');
       if (activeP.length > 0 && !selectedMilestoneProjectId) {
         selectedMilestoneProjectId = activeP[0].id;

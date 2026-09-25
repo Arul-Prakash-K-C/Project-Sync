@@ -14,7 +14,8 @@ import {
   MeetingSchema,
   AnnouncementSchema,
   FacultyNoteSchema,
-  AuditLogEntrySchema
+  AuditLogEntrySchema,
+  StaffRequestSchema
 } from '$lib/schemas';
 import { newId } from '$lib/utils/id';
 
@@ -132,6 +133,40 @@ export interface Project {
   /** Supervising faculty member. Missing on legacy projects. */
   mentorId?: string;
   mentorName?: string;
+}
+
+/** Label for the student who created a project and leads its team. */
+export const TEAM_LEADER_ROLE = 'Team Leader';
+
+/** The creator (owner) of a project is its team leader, whatever label an older record carries. */
+export function isTeamLeader(project: Pick<Project, 'ownerId'>, userId: string | undefined): boolean {
+  return !!userId && project.ownerId === userId;
+}
+
+/** Role shown for a member: the owner is always the Team Leader. */
+export function memberRoleLabel(project: Pick<Project, 'ownerId'>, member: ProjectMember): string {
+  return member.userId === project.ownerId ? TEAM_LEADER_ROLE : member.role;
+}
+
+/**
+ * A faculty sign-up waiting for an administrator. Faculty accounts are not
+ * self-service: the request holds the person's details until an admin
+ * approves (which creates the account) or rejects it.
+ */
+export interface StaffRequest {
+  id: string;
+  authUid?: string;
+  name: string;
+  email: string;
+  department: string;
+  role: 'faculty';
+  passwordHash?: string;
+  profile?: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  reason?: string;
 }
 
 export const TEAM_SIZE_MIN = 2;
@@ -583,7 +618,8 @@ export const COLLECTION_KEYS = [
   'meetings',
   'announcements',
   'faculty_notes',
-  'audit_log'
+  'audit_log',
+  'staff_requests'
 ] as const;
 export type CollectionKey = (typeof COLLECTION_KEYS)[number];
 
@@ -777,6 +813,15 @@ class DatabaseService {
   }
 
   // Projects CRUD
+  /**
+   * The projects a faculty member supervises: every project in their
+   * department, plus any elsewhere that named them as mentor. Every faculty
+   * page uses this, so a cross-department mentor can review what they approved.
+   */
+  getSupervisedProjects(faculty: Pick<User, 'id' | 'department'>): Project[] {
+    return this.getProjects().filter((p) => p.department === faculty.department || p.mentorId === faculty.id);
+  }
+
   /** Faculty accounts a project can name as its mentor. */
   getMentors(): User[] {
     return this.getUsers()
@@ -809,7 +854,7 @@ class DatabaseService {
       status: 'pending',
       ownerId: owner.id,
       ownerName: owner.name,
-      members: [{ userId: owner.id, name: owner.name, role: 'Creator / PM', avatar: owner.avatar }],
+      members: [{ userId: owner.id, name: owner.name, role: TEAM_LEADER_ROLE, avatar: owner.avatar }],
       milestones: [],
       pendingInvites: [],
       pendingRequests: [],
@@ -903,13 +948,20 @@ class DatabaseService {
     this.saveProjectIdeas(filtered);
   }
 
-  inviteToProject(projectId: string, email: string): void {
-    const user = this.getUsers().find(u => u.email === email);
+  /**
+   * Invites a student by email. Only the team leader may invite: pass the
+   * person sending the invitation as `invitedBy`.
+   */
+  inviteToProject(projectId: string, email: string, invitedBy?: Pick<User, 'id'>): void {
+    const user = this.getUsers().find(u => u.email.toLowerCase() === email.trim().toLowerCase());
     if (!user) throw new Error('User not found');
     const projects = this.getProjects();
     const idx = projects.findIndex(p => p.id === projectId);
     if (idx !== -1) {
       const proj = projects[idx];
+      if (invitedBy && !isTeamLeader(proj, invitedBy.id)) {
+        throw new Error('Only the team leader can invite teammates.');
+      }
       if (proj.members.some(m => m.userId === user.id)) throw new Error('Already a member');
       if (!proj.pendingInvites.includes(user.id) && this.openSeats(proj) === 0) {
         throw new Error(`The team is full (${proj.teamSize} members, including pending invitations).`);
@@ -1274,6 +1326,100 @@ class DatabaseService {
       this.saveFacultyNotes(notes);
       return newNote;
     }
+  }
+
+  // Staff (faculty) sign-up approvals
+  getStaffRequests(status?: StaffRequest['status']): StaffRequest[] {
+    const all = this.getStorage('staff_requests', [] as StaffRequest[], z.array(StaffRequestSchema) as unknown as ZodType<StaffRequest[]>);
+    return status ? all.filter((r) => r.status === status) : all;
+  }
+
+  saveStaffRequests(requests: StaffRequest[]): void {
+    this.setStorage('staff_requests', requests);
+  }
+
+  /**
+   * Local mode: records a faculty sign-up for an admin to decide on, and
+   * notifies every admin. Returns the existing request if one is already open.
+   */
+  requestStaffAccount(request: Omit<StaffRequest, 'id' | 'status' | 'createdAt' | 'role'>): StaffRequest {
+    const requests = this.getStaffRequests();
+    const email = request.email.toLowerCase();
+    const open = requests.find((r) => r.email.toLowerCase() === email && r.status === 'pending');
+    if (open) return open;
+    const entry: StaffRequest = {
+      ...request,
+      email,
+      id: newId('staffreq'),
+      role: 'faculty',
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    this.saveStaffRequests([...requests, entry]);
+    this.saveNotifications(
+      this.getUsers()
+        .filter((u) => u.role === 'admin')
+        .map((admin) => ({
+          id: newId('notif'),
+          userId: admin.id,
+          title: 'Faculty sign-up to approve',
+          description: `${entry.name} (${entry.email}) asked for a faculty account in ${entry.department}.`,
+          type: 'project' as const,
+          read: false,
+          createdAt: new Date().toISOString(),
+          actionUrl: '/dashboard/admin'
+        }))
+    );
+    return entry;
+  }
+
+  /** Local mode: approves a request by creating the faculty account it describes. */
+  approveStaffRequest(requestId: string, admin: Pick<User, 'id' | 'role'>): User {
+    if (admin.role !== 'admin') throw new Error('Only an administrator can approve staff accounts.');
+    const requests = this.getStaffRequests();
+    const req = requests.find((r) => r.id === requestId);
+    if (!req || req.status !== 'pending') throw new Error('This request is no longer pending.');
+    const users = this.getUsers();
+    if (users.some((u) => u.email.toLowerCase() === req.email.toLowerCase())) {
+      throw new Error('An account with this email already exists.');
+    }
+    const faculty: User = {
+      id: newId('user'),
+      name: req.name,
+      email: req.email,
+      passwordHash: req.passwordHash,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(req.name)}`,
+      role: 'faculty',
+      department: req.department,
+      bio: '',
+      skills: [],
+      interests: [],
+      availability: true
+    };
+    this.saveUsers([...users, faculty]);
+    this.saveStaffRequests(
+      requests.map((r) =>
+        r.id === requestId
+          ? { ...r, status: 'approved' as const, decidedAt: new Date().toISOString(), decidedBy: admin.id, passwordHash: undefined }
+          : r
+      )
+    );
+    return faculty;
+  }
+
+  /** Local mode: turns a request down. The person can see the reason when they try to sign in. */
+  rejectStaffRequest(requestId: string, admin: Pick<User, 'id' | 'role'>, reason = ''): void {
+    if (admin.role !== 'admin') throw new Error('Only an administrator can reject staff accounts.');
+    const requests = this.getStaffRequests();
+    const req = requests.find((r) => r.id === requestId);
+    if (!req || req.status !== 'pending') throw new Error('This request is no longer pending.');
+    this.saveStaffRequests(
+      requests.map((r) =>
+        r.id === requestId
+          ? { ...r, status: 'rejected' as const, decidedAt: new Date().toISOString(), decidedBy: admin.id, reason, passwordHash: undefined }
+          : r
+      )
+    );
   }
 
   // Faculty activity log

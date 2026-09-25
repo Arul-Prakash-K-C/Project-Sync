@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { auth, SESSION_DURATION_MS } from './auth.svelte';
+import { auth, SESSION_DURATION_MS, PendingApprovalError } from './auth.svelte';
 import { db } from '$lib/services/db';
 import { recordSuccessfulAttempt } from '$lib/utils/rateLimiter';
 
@@ -75,5 +75,39 @@ describe('registration departments', () => {
   it('keeps the chosen department for students', async () => {
     const student = await auth.register('Sam Student', 'sam@teamforge.edu', 'Str0ng!Pass', 'student', 'Software Engineering');
     expect(student.department).toBe('Software Engineering');
+  });
+});
+
+describe('faculty sign-up approval (local mode)', () => {
+  it('queues the request instead of creating an account, and tells the person why', async () => {
+    await expect(
+      auth.register('Fiona Faculty', 'fiona@teamforge.edu', 'Str0ng!Pass', 'faculty', 'Software Engineering')
+    ).rejects.toBeInstanceOf(PendingApprovalError);
+    expect(db.getUsers().some((u) => u.email === 'fiona@teamforge.edu')).toBe(false);
+    expect(db.getStaffRequests('pending').map((r) => r.email)).toContain('fiona@teamforge.edu');
+    expect(db.getNotifications('admin_sys').some((n) => n.title === 'Faculty sign-up to approve')).toBe(true);
+  });
+
+  it('says "waiting for approval" at sign-in only when the password is right', async () => {
+    await auth.register('Fiona Faculty', 'fiona@teamforge.edu', 'Str0ng!Pass', 'faculty', 'Software Engineering').catch(() => {});
+    await expect(auth.login('fiona@teamforge.edu', 'Str0ng!Pass')).rejects.toBeInstanceOf(PendingApprovalError);
+    await expect(auth.login('fiona@teamforge.edu', 'wrong-guess')).rejects.toThrow('Invalid email or password');
+  });
+
+  it('lets the person sign in once an admin approves, with the password they chose', async () => {
+    await auth.register('Fiona Faculty', 'fiona@teamforge.edu', 'Str0ng!Pass', 'faculty', 'Software Engineering').catch(() => {});
+    const req = db.getStaffRequests('pending').find((r) => r.email === 'fiona@teamforge.edu')!;
+    expect(() => db.approveStaffRequest(req.id, { id: 'student_alex', role: 'student' })).toThrow(/administrator/);
+    db.approveStaffRequest(req.id, db.getUser('admin_sys')!);
+    const user = await auth.login('fiona@teamforge.edu', 'Str0ng!Pass');
+    expect(user.role).toBe('faculty');
+    expect(db.getStaffRequests().find((r) => r.id === req.id)?.passwordHash).toBeUndefined();
+  });
+
+  it('shows the rejection reason', async () => {
+    await auth.register('Rex Reject', 'rex@teamforge.edu', 'Str0ng!Pass', 'faculty', 'Software Engineering').catch(() => {});
+    const req = db.getStaffRequests('pending').find((r) => r.email === 'rex@teamforge.edu')!;
+    db.rejectStaffRequest(req.id, db.getUser('admin_sys')!, 'Use your staff email');
+    await expect(auth.login('rex@teamforge.edu', 'Str0ng!Pass')).rejects.toThrow(/Use your staff email/);
   });
 });

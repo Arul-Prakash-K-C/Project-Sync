@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { auth, PendingConfirmationError } from '$lib/stores/auth.svelte';
+  import { auth, PendingConfirmationError, PendingApprovalError } from '$lib/stores/auth.svelte';
   import { db } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { getDashboardRoute } from '$lib/utils/navigation';
@@ -125,6 +125,9 @@
     updateLockout();
   });
 
+  /** Neutral guidance (e.g. "waiting for approval") — not an error. */
+  let formNotice = $state('');
+
   // Switching tabs clears stale errors
   let lastTab = 'login';
   $effect(() => {
@@ -137,6 +140,7 @@
   async function handleLogin(e: SubmitEvent) {
     e.preventDefault();
     formError = '';
+    formNotice = '';
     updateLockout();
 
     if (lockoutStatus.locked) {
@@ -151,6 +155,10 @@
       toast.success(`Welcome back, ${user.name}!`);
       goto(getDashboardRoute(user.role));
     } catch (err: any) {
+      if (err instanceof PendingApprovalError) {
+        formNotice = err.message;
+        return;
+      }
       formError = err.message || 'Login failed';
       updateLockout();
       toast.error(formError);
@@ -193,11 +201,12 @@
       toast.success('Registration successful! Welcome to TeamForge.');
       goto(getDashboardRoute(user.role));
     } catch (err: any) {
-      if (err instanceof PendingConfirmationError) {
-        // Not a failure: the account exists and is waiting on the email link.
+      if (err instanceof PendingConfirmationError || err instanceof PendingApprovalError) {
+        // Not a failure: the account is waiting on an email link or an admin.
         toast.info(err.message, 8000);
         loginEmail = registerEmail;
         activeTab = 'login';
+        formNotice = err.message;
         return;
       }
       formError = err.message || 'Registration failed';
@@ -276,6 +285,16 @@
               Unlocks in <span class="font-mono font-bold text-sm">{lockoutStatus.remainingSeconds}s</span>
             </p>
           </div>
+        </div>
+      {/if}
+
+      {#if formNotice && !formError}
+        <div
+          role="status"
+          class="flex items-start gap-2.5 p-3 rounded-md border border-info/30 bg-info/8 text-info"
+        >
+          <Clock class="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <p class="text-xs font-semibold leading-relaxed">{formNotice}</p>
         </div>
       {/if}
 

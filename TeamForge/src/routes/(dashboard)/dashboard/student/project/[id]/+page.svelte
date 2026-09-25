@@ -12,8 +12,7 @@
     type Milestone,
     type WeeklyReport,
     type CategorizedFeedback,
-    type Meeting
-  } from '$lib/services/db';
+    type Meeting, memberRoleLabel, isTeamLeader } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { storeFileBlob, getFileBlob, formatBytes, inferFileCategory } from '$lib/services/fileStorage';
   import {
@@ -252,7 +251,7 @@
     e.preventDefault();
     if (!project) return;
     try {
-      db.inviteToProject(project.id, inviteEmail);
+      db.inviteToProject(project.id, inviteEmail, auth.user ?? undefined);
       toast.success('Teammate invited successfully!');
       inviteDialogOpen = false;
       inviteEmail = '';
@@ -444,16 +443,19 @@
       description={project.description}
     >
       {#snippet actions()}
-        <Button
-          variant="outline"
-          size="sm"
-          onclick={() => (inviteDialogOpen = true)}
-          disabled={seatsLeft === 0}
-          title={seatsLeft === 0 ? 'Every place on the team is filled or invited' : undefined}
-        >
-          <UserPlus class="w-3.5 h-3.5" />
-          {seatsLeft === 0 ? 'Team full' : 'Invite teammates'}
-        </Button>
+        <!-- Only the team leader brings people onto the team. -->
+        {#if project && isTeamLeader(project, auth.user?.id)}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (inviteDialogOpen = true)}
+            disabled={seatsLeft === 0}
+            title={seatsLeft === 0 ? 'Every place on the team is filled or invited' : undefined}
+          >
+            <UserPlus class="w-3.5 h-3.5" />
+            {seatsLeft === 0 ? 'Team full' : 'Invite teammates'}
+          </Button>
+        {/if}
       {/snippet}
     </PageHeader>
 
@@ -507,7 +509,7 @@
               name={member.name}
               size="sm"
               class="ring-2 ring-card"
-              title="{member.name} ({member.role})"
+              title="{member.name} ({memberRoleLabel(project, member)})"
             />
           {/each}
           {#if project.members.length > 5}
@@ -678,7 +680,11 @@
                 <Avatar src={member.avatar} name={member.name} size="sm" />
                 <div class="flex flex-col min-w-0 leading-tight">
                   <span class="text-sm font-bold text-foreground truncate">{member.name}</span>
-                  <span class="text-3xs text-muted-foreground uppercase tracking-wider">{member.role}</span>
+                  <span
+                    class="text-3xs uppercase tracking-wider
+                      {isTeamLeader(project, member.userId) ? 'text-accent font-semibold' : 'text-muted-foreground'}"
+                    >{memberRoleLabel(project, member)}</span
+                  >
                 </div>
               </li>
             {/each}

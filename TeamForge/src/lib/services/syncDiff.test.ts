@@ -22,6 +22,20 @@ describe('diffCollection', () => {
     expect(diffCollection([a, b], [a]).deletes).toEqual(['b']);
   });
 
+  it('treats records with the same content but different key order as unchanged', () => {
+    // Postgres jsonb returns keys in its own order; the app rebuilds them in schema order.
+    const fromServer = { title: 'T', id: 'a', nested: { z: 1, a: [{ y: 2, b: 3 }] } };
+    const fromApp = { id: 'a', nested: { a: [{ b: 3, y: 2 }], z: 1 }, title: 'T' };
+    expect(diffCollection([fromServer], [fromApp])).toEqual({ inserts: [], updates: [], deletes: [] });
+    expect(sameRecord(fromServer, fromApp)).toBe(true);
+  });
+
+  it('still notices a real change nested inside a record', () => {
+    const before = { id: 'a', nested: { list: [1, 2] } };
+    const after = { id: 'a', nested: { list: [2, 1] } };
+    expect(diffCollection([before], [after]).updates).toEqual([after]);
+  });
+
   it('ignores entries without a string id', () => {
     const { inserts } = diffCollection([], [{ nope: true }, null, a]);
     expect(inserts).toEqual([a]);

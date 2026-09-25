@@ -42,7 +42,7 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      projects = db.getSupervisedProjects(auth.user!);
       // Only meetings for this supervisor's department's teams.
       const projectIds = new Set(projects.map((p) => p.id));
       meetings = db.getMeetings().filter((m) => projectIds.has(m.projectId));

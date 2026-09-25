@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
-  import { db, type Project, type Task } from '$lib/services/db';
+  import { db, type Project, type Task, memberRoleLabel } from '$lib/services/db';
   import { BarChart3, Users } from 'lucide-svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
@@ -21,7 +21,7 @@
 
   function loadData() {
     if (auth.user) {
-      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      projects = db.getSupervisedProjects(auth.user!);
       allTasks = db.getTasks();
     }
   }
@@ -115,7 +115,7 @@
                       <span class="flex flex-col min-w-0 leading-tight">
                         <span class="text-sm font-bold text-foreground truncate">{r.member.name}</span>
                         <span class="text-3xs text-muted-foreground uppercase tracking-wider">
-                          {r.member.role}
+                          {memberRoleLabel(r.project, r.member)}
                         </span>
                       </span>
                     </span>

@@ -20,7 +20,7 @@
 
   onMount(() => {
     if (auth.user) {
-      projects = db.getProjects().filter((p) => p.department === auth.user!.department);
+      projects = db.getSupervisedProjects(auth.user!);
     }
     loaded = true;
   });

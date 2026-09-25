@@ -44,6 +44,17 @@ export class PendingConfirmationError extends Error {
   }
 }
 
+/**
+ * Thrown when a faculty sign-up is waiting for an administrator. Guidance, not
+ * a failure: the request is recorded and the admins have been notified.
+ */
+export class PendingApprovalError extends Error {
+  constructor(message = 'Your faculty account is waiting for an administrator to approve it. You can sign in once it has been approved.') {
+    super(message);
+    this.name = 'PendingApprovalError';
+  }
+}
+
 /** Human-readable text for the auth and database errors a person can actually hit. */
 function cloudAuthMessage(err: { code?: string; message?: string } | null | undefined): string {
   switch (err?.code) {
@@ -53,8 +64,11 @@ function cloudAuthMessage(err: { code?: string; message?: string } | null | unde
     case 'email_not_confirmed':
       return 'Confirm your email address first — check your inbox for the link.';
     case 'over_request_rate_limit':
-    case 'over_email_send_rate_limit':
       return 'Too many attempts. The server has paused this for a while — try again later.';
+    case 'over_email_send_rate_limit':
+      // Not the person's fault: the project's hourly email quota is used up
+      // (Supabase's built-in mailer allows only a handful per hour).
+      return "We couldn't send the confirmation email right now — the sign-up email limit was reached. Please try again in an hour, or ask an administrator.";
     case 'user_already_exists':
     case 'email_exists':
       return 'An account with this email already exists';
@@ -195,6 +209,20 @@ class AuthStore {
     const users = db.getUsers();
     const matched = users.find((u) => u.email.toLowerCase() === email);
     if (!matched) {
+      // A faculty sign-up still waiting on an admin. The password is checked
+      // first, so this can't be used to discover which emails have applied.
+      const request = db
+        .getStaffRequests()
+        .filter((r) => r.email.toLowerCase() === email && r.status !== 'approved')
+        .at(-1);
+      if (request?.status === 'pending' && request.passwordHash) {
+        const { valid } = await verifyPassword(password, request.passwordHash);
+        if (valid) throw new PendingApprovalError();
+      } else if (request?.status === 'rejected') {
+        throw new Error(
+          `Your faculty account request was not approved${request.reason ? `: ${request.reason}` : '.'} Contact an administrator.`
+        );
+      }
       recordFailedAttempt(email);
       throw new Error('Invalid email or password');
     }
@@ -290,11 +318,18 @@ class AuthStore {
       // the profile the person filled in travels in their auth metadata, and the
       // database validates it — role included — before creating anything.
       const pendingProfile = authUser.user_metadata?.teamforge_profile;
-      const { error } = pendingProfile
+      const { data: outcome, error } = pendingProfile
         ? await sb.rpc('register_profile', { profile: pendingProfile })
         : cloudOptions.seedDemo
           ? await sb.rpc('claim_demo_profile')
-          : { error: { code: 'P0002', message: 'No TeamForge profile is linked to this sign-in.' } };
+          : { data: null, error: { code: 'P0002', message: 'No TeamForge profile is linked to this sign-in.' } };
+      // Faculty sign-ups outside the allow-list wait for an administrator.
+      if (outcome?.status === 'pending') throw new PendingApprovalError();
+      if (outcome?.status === 'rejected') {
+        throw new Error(
+          `Your faculty account request was not approved${outcome.reason ? `: ${outcome.reason}` : '.'} Contact an administrator.`
+        );
+      }
       // 23505 = the profile already exists. Confirming by email opens a second
       // tab, and both tabs pick up the new session at once; whichever loses the
       // race just reads the profile the other one created.
@@ -467,6 +502,18 @@ class AuthStore {
     if (isCloudMode) return this.registerCloud(newUser, password);
 
     newUser.passwordHash = await hashPassword(password);
+    if (role === 'faculty') {
+      // Staff accounts need an administrator's approval before they exist.
+      db.requestStaffAccount({
+        name: newUser.name,
+        email: newUser.email,
+        department: newUser.department,
+        passwordHash: newUser.passwordHash
+      });
+      throw new PendingApprovalError(
+        'Your faculty account request was sent to the administrators. You can sign in as soon as it is approved.'
+      );
+    }
     users.push(newUser);
     db.saveUsers(users);
     this.establishSession(newUser);

@@ -3,7 +3,8 @@
   import { goto } from '$app/navigation';
   import { auth } from '$lib/stores/auth.svelte';
   import { newId } from '$lib/utils/id';
-  import { db, type User, type Department, type Project } from '$lib/services/db';
+  import { db, type User, type Department, type Project, type StaffRequest } from '$lib/services/db';
+  import { approveStaff, rejectStaff } from '$lib/services/staffApprovals';
   import { toast } from '$lib/stores/toast.svelte';
   import { isCloudMode } from '$lib/supabase/config';
   import {
@@ -16,7 +17,10 @@
     Upload,
     RotateCcw,
     Search,
-    AlertTriangle
+    AlertTriangle,
+    UserCheck,
+    Check,
+    X
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Card from '$lib/components/ui/Card.svelte';
@@ -29,6 +33,22 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
 
   let users = $state<User[]>([]);
+  let staffRequests = $state<StaffRequest[]>([]);
+  /** Request id currently being approved/rejected, for button spinners. */
+  let decidingId = $state('');
+  let rejectDialogOpen = $state(false);
+  let rejectTarget = $state<StaffRequest | null>(null);
+  let rejectReason = $state('');
+
+  const pendingStaff = $derived(
+    staffRequests.filter((r) => r.status === 'pending').sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  );
+  const recentlyDecided = $derived(
+    staffRequests
+      .filter((r) => r.status !== 'pending' && r.decidedAt)
+      .sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? ''))
+      .slice(0, 5)
+  );
   let departments = $state<Department[]>([]);
   let projects = $state<Project[]>([]);
   let loaded = $state(false);
@@ -90,10 +110,15 @@
   onMount(() => {
     loadData();
     loaded = true;
+    // New sign-ups and approvals by other admins arrive live.
+    return db.onChange((key) => {
+      if (key === 'staff_requests' || key === 'users') loadData();
+    });
   });
 
   function loadData() {
     users = db.getUsers();
+    staffRequests = db.getStaffRequests();
     departments = db.getDepartments();
     projects = db.getProjects();
   }
@@ -120,6 +145,42 @@
       loadData();
     } catch (err) {
       toast.error('Failed to remove user account');
+    }
+  }
+
+  async function approveRequest(req: StaffRequest) {
+    if (!auth.user) return;
+    decidingId = req.id;
+    try {
+      await approveStaff(req, auth.user);
+      toast.success(`${req.name} can now sign in as faculty.`);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not approve this request');
+    } finally {
+      decidingId = '';
+    }
+  }
+
+  function openReject(req: StaffRequest) {
+    rejectTarget = req;
+    rejectReason = '';
+    rejectDialogOpen = true;
+  }
+
+  async function confirmReject() {
+    if (!auth.user || !rejectTarget) return;
+    const req = rejectTarget;
+    decidingId = req.id;
+    try {
+      await rejectStaff(req, auth.user, rejectReason.trim());
+      toast.success(`Request from ${req.name} rejected.`);
+      rejectDialogOpen = false;
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not reject this request');
+    } finally {
+      decidingId = '';
     }
   }
 
@@ -235,6 +296,78 @@
         {/if}
       {/snippet}
     </PageHeader>
+
+    <!-- Staff approvals: faculty accounts only exist once an admin says so. -->
+    <Card
+      title="Staff approvals"
+      description={pendingStaff.length > 0
+        ? `${pendingStaff.length} faculty sign-up${pendingStaff.length === 1 ? '' : 's'} waiting for a decision.`
+        : 'Faculty sign-ups appear here for approval before the account is created.'}
+    >
+      {#snippet actions()}
+        {#if pendingStaff.length > 0}
+          <Badge variant="warning" dot>{pendingStaff.length} pending</Badge>
+        {/if}
+      {/snippet}
+
+      {#if pendingStaff.length === 0}
+        <EmptyState
+          icon={UserCheck}
+          title="No sign-ups waiting"
+          description="When someone registers as faculty, their request lands here and you're notified."
+          size="sm"
+        />
+      {:else}
+        <ul class="flex flex-col divide-y divide-border">
+          {#each pendingStaff as req (req.id)}
+            <li class="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <Avatar src="" name={req.name} size="sm" />
+                <div class="min-w-0 leading-tight">
+                  <p class="text-sm font-bold text-foreground truncate">{req.name}</p>
+                  <p class="text-2xs text-muted-foreground truncate">
+                    {req.email} · {req.department} · requested
+                    <time datetime={req.createdAt}>{new Date(req.createdAt).toLocaleDateString()}</time>
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <Button
+                  variant="success"
+                  size="sm"
+                  onclick={() => approveRequest(req)}
+                  loading={decidingId === req.id && !rejectDialogOpen}
+                  disabled={!!decidingId}
+                >
+                  <Check class="w-3.5 h-3.5" />
+                  Approve
+                </Button>
+                <Button variant="ghost" size="sm" onclick={() => openReject(req)} disabled={!!decidingId}>
+                  <X class="w-3.5 h-3.5" />
+                  Reject
+                </Button>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+
+      {#if recentlyDecided.length > 0}
+        <div class="mt-4 pt-3 border-t border-border">
+          <p class="eyebrow">Recent decisions</p>
+          <ul class="mt-2 flex flex-col gap-1.5">
+            {#each recentlyDecided as req (req.id)}
+              <li class="flex items-center justify-between gap-3 text-2xs">
+                <span class="text-foreground truncate">{req.name} <span class="text-muted-foreground">· {req.email}</span></span>
+                <Badge variant={req.status === 'approved' ? 'success' : 'danger'} size="sm" class="capitalize shrink-0">
+                  {req.status}
+                </Badge>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+    </Card>
 
     <section aria-label="Platform totals" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <StatCard
@@ -551,6 +684,29 @@
     {#snippet footer()}
       <Button type="button" variant="outline" onclick={() => (addDeptDialogOpen = false)}>Cancel</Button>
       <Button type="submit" form="dept-form" variant="primary">Register department</Button>
+    {/snippet}
+  </Dialog>
+
+  <Dialog
+    bind:open={rejectDialogOpen}
+    size="sm"
+    title="Reject faculty sign-up?"
+    description={rejectTarget ? `${rejectTarget.name} · ${rejectTarget.email}` : ''}
+    onclose={() => (rejectTarget = null)}
+  >
+    <div class="field">
+      <label for="reject-reason" class="field-label">Reason <span class="font-normal text-muted-foreground">(optional)</span></label>
+      <textarea
+        id="reject-reason"
+        bind:value={rejectReason}
+        rows="3"
+        placeholder="Shown to them when they try to sign in, e.g. “Please register with your university email.”"
+        class="field-textarea"
+      ></textarea>
+    </div>
+    {#snippet footer()}
+      <Button variant="outline" onclick={() => (rejectDialogOpen = false)}>Cancel</Button>
+      <Button variant="danger" onclick={confirmReject} loading={!!decidingId}>Reject request</Button>
     {/snippet}
   </Dialog>
 

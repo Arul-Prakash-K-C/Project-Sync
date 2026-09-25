@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db, type NewProjectInput } from './db';
+import { db, type NewProjectInput, TEAM_LEADER_ROLE, isTeamLeader, memberRoleLabel } from './db';
 
 beforeEach(() => {
   localStorage.clear();
@@ -77,5 +77,37 @@ describe('team size limits', () => {
     const legacy = db.getProjects().map(({ requiredSkills, teamSize, mentorId, mentorName, ...rest }) => rest);
     localStorage.setItem('teamforge_projects', JSON.stringify(legacy));
     expect(db.getProjects().some((p) => p.id === 'project_studyhub')).toBe(true);
+  });
+});
+
+describe('supervised projects', () => {
+  it("include the faculty member's department and projects that name them as mentor elsewhere", () => {
+    const julian = db.getUser('faculty_julian')!; // Software Engineering
+    const p = db.createProject(input({ department: 'Computer Science & Engineering', mentorId: julian.id }), owner());
+    const supervised = db.getSupervisedProjects(julian).map((x) => x.id);
+    expect(supervised).toContain(p.id);
+    expect(db.getSupervisedProjects(db.getUser('faculty_evelyn')!).map((x) => x.id)).toContain(p.id); // same department
+  });
+});
+
+describe('team leader', () => {
+  it('makes the creator the Team Leader', () => {
+    const p = db.createProject(input(), owner());
+    expect(p.members[0]).toMatchObject({ userId: 'student_alex', role: TEAM_LEADER_ROLE });
+    expect(isTeamLeader(p, 'student_alex')).toBe(true);
+    expect(memberRoleLabel(p, p.members[0])).toBe('Team Leader');
+  });
+
+  it('labels the owner of an older project as Team Leader too', () => {
+    const legacy = db.getProjects().find((x) => x.id === 'project_studyhub')!;
+    const ownerMember = legacy.members.find((m) => m.userId === legacy.ownerId)!;
+    expect(memberRoleLabel(legacy, ownerMember)).toBe('Team Leader');
+  });
+
+  it('lets only the team leader invite', () => {
+    const p = db.createProject(input({ teamSize: 4 }), owner());
+    db.inviteToProject(p.id, 'sarah@teamforge.edu', { id: 'student_alex' });
+    db.acceptInvite(p.id, 'student_sarah');
+    expect(() => db.inviteToProject(p.id, 'marcus@teamforge.edu', { id: 'student_sarah' })).toThrow(/team leader/);
   });
 });

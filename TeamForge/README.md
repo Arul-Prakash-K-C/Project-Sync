@@ -53,7 +53,7 @@ Each collection is a table with its record in a `data jsonb` column. The fields 
 ### Switching to cloud mode
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Link it and apply the schema:
+2. Link it and apply the schema (every file in `supabase/migrations`, in order):
 
    ```sh
    npx supabase login
@@ -74,7 +74,7 @@ Each collection is a table with its record in a `data jsonb` column. The fields 
    }' where key = 'bootstrap';
    ```
 
-   Only emails in `adminEmails` can register as admin. Faculty can self-register only if they're listed in `facultyEmails` or `allowFacultySignup` is true. Students can always register.
+   Only emails in `adminEmails` can register as admin. Faculty listed in `facultyEmails` (or everyone, if `allowFacultySignup` is true) get in straight away. Any other faculty sign-up becomes a request in the admin dashboard's **Staff approvals** section: every admin is notified, and the account is created only when an admin approves it. Students can always register.
 6. Deploy. The app is a static single-page app, so the host must send every route to `index.html`.
    - **Vercel:** the repository root has a `vercel.json` that installs and builds inside `TeamForge/` and handles that routing. Leave the Vercel project's **Root Directory** at the repository root. Under Settings → Environment Variables, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`; they're read at build time, so redeploy after adding them. Then add the Vercel URL to Supabase (Authentication → URL Configuration): set it as the Site URL, and add `<vercel-url>/auth` as a redirect URL.
    - **Other hosts:** run `npm run build` and serve the `build/` folder with a fallback to `index.html`.

@@ -9,8 +9,7 @@
     type Task,
     type Announcement,
     type Meeting,
-    type User
-  } from '$lib/services/db';
+    type User, memberRoleLabel } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import {
     Plus,
@@ -341,7 +340,12 @@
                       {p.name}
                     </a>
                   </h3>
-                  <Badge variant={statusTone[p.status]} dot class="capitalize shrink-0">{p.status}</Badge>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    {#if p.ownerId === auth.user?.id}
+                      <Badge variant="primary" size="sm">Team leader</Badge>
+                    {/if}
+                    <Badge variant={statusTone[p.status]} dot class="capitalize">{p.status}</Badge>
+                  </div>
                 </div>
 
                 <p class="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
@@ -368,7 +372,7 @@
                         name={member.name}
                         size="sm"
                         class="ring-2 ring-card"
-                        title="{member.name} ({member.role})"
+                        title="{member.name} ({memberRoleLabel(p, member)})"
                       />
                     {/each}
                     {#if p.members.length > 4}

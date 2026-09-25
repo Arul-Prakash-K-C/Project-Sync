@@ -7,13 +7,15 @@
 */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const migration = readFileSync(
-  fileURLToPath(new URL('../migrations/20260925000000_teamforge_init.sql', import.meta.url)),
-  'utf8'
-);
+// Every migration, applied in filename order — exactly what `supabase db push` does.
+const migrationsDir = fileURLToPath(new URL('../migrations/', import.meta.url));
+const migrations = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()
+  .map((f) => readFileSync(migrationsDir + f, 'utf8'));
 
 const db = new PGlite();
 const uid = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
@@ -24,6 +26,7 @@ const B = [2, 'bea@uni.edu'] as const; // student, invited then member
 const C = [3, 'cal@uni.edu'] as const; // student, outsider
 const F = [4, 'fay@uni.edu'] as const; // faculty (mentor)
 const M = [5, 'max@uni.edu'] as const; // admin
+const G = [6, 'gus@uni.edu'] as const; // faculty applicant who gets rejected
 const [aId, bId, cId, fId] = [uid(1), uid(2), uid(3), uid(4)];
 
 async function run(who: Who, sql: string, params: unknown[] = []) {
@@ -73,7 +76,7 @@ beforeAll(async () => {
     create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
     alter table storage.objects enable row level security;
   `);
-  await db.exec(migration);
+  for (const sql of migrations) await db.exec(sql);
   // Supabase grants these by default on new tables.
   await db.exec(`
     grant usage on schema public, auth, storage to anon, authenticated;
@@ -105,12 +108,53 @@ describe('registration', () => {
     await ok(C, 'select public.register_profile($1::jsonb)', [profile('student', 'Cal')]);
   });
 
-  it('refuses faculty and admin self-signup unless bootstrapped', async () => {
-    await refused(F, 'select public.register_profile($1::jsonb)', [profile('faculty', 'Fay')]);
+  it('refuses admin self-signup unless allow-listed', async () => {
     await refused(M, 'select public.register_profile($1::jsonb)', [profile('admin', 'Max')]);
-    await db.exec(`update public.app_config set value = '{"adminEmails":["max@uni.edu"],"facultyEmails":["fay@uni.edu"]}' where key = 'bootstrap'`);
-    await ok(F, 'select public.register_profile($1::jsonb)', [profile('faculty', 'Fay')]);
+    await db.exec(`update public.app_config set value = '{"adminEmails":["max@uni.edu"]}' where key = 'bootstrap'`);
     await ok(M, 'select public.register_profile($1::jsonb)', [profile('admin', 'Max')]);
+  });
+
+  it('queues a faculty sign-up for approval and notifies the admins', async () => {
+    const res = await run(F, 'select public.register_profile($1::jsonb) as r', [profile('faculty', 'Fay')]);
+    expect(res.rows[0].r).toEqual({ status: 'pending' });
+    expect(await count(null, 'select 1 from public.accounts where auth_uid = $1', [fId])).toBe(0);
+    // Asking again doesn't duplicate the request.
+    const again = await run(F, 'select public.register_profile($1::jsonb) as r', [profile('faculty', 'Fay')]);
+    expect((again.rows[0].r as { status: string }).status).toBe('pending');
+    expect(await count(null, `select 1 from public.staff_requests where email = 'fay@uni.edu'`)).toBe(1);
+    expect(await count(M, `select 1 from public.notifications where data->>'title' = 'Faculty sign-up to approve'`)).toBe(1);
+  });
+
+  it('shows staff requests to admins only', async () => {
+    expect(await count(A, 'select * from public.staff_requests')).toBe(0);
+    expect(await count(M, 'select * from public.staff_requests')).toBe(1);
+  });
+
+  it('lets only an admin approve, which creates the faculty account', async () => {
+    const reqId = 'staffreq_' + fId.replace(/-/g, '');
+    await refused(A, 'select public.approve_staff_request($1)', [reqId]);
+    await refused(F, 'select public.approve_staff_request($1)', [reqId]);
+    await ok(M, 'select public.approve_staff_request($1)', [reqId]);
+    expect(await count(null, `select 1 from public.users where id = $1 and role = 'faculty'`, [fId])).toBe(1);
+    expect(await count(null, 'select 1 from public.accounts where auth_uid = $1', [fId])).toBe(1);
+    expect(await count(F, `select 1 from public.notifications where data->>'title' = 'Faculty account approved'`)).toBe(1);
+    await refused(M, 'select public.approve_staff_request($1)', [reqId]); // not pending any more
+  });
+
+  it('passes a rejection reason back to the applicant', async () => {
+    await ok(G, 'select public.register_profile($1::jsonb)', [profile('faculty', 'Gus')]);
+    const reqId = 'staffreq_' + uid(6).replace(/-/g, '');
+    await refused(A, 'select public.reject_staff_request($1, $2)', [reqId, 'nope']);
+    await ok(M, 'select public.reject_staff_request($1, $2)', [reqId, 'Use your university email']);
+    const res = await run(G, 'select public.register_profile($1::jsonb) as r', [profile('faculty', 'Gus')]);
+    expect(res.rows[0].r).toEqual({ status: 'rejected', reason: 'Use your university email' });
+    expect(await count(null, 'select 1 from public.accounts where auth_uid = $1', [uid(6)])).toBe(0);
+  });
+
+  it('still lets allow-listed faculty in directly', async () => {
+    await db.exec(`update public.app_config set value = value || '{"facultyEmails":["hal@uni.edu"]}' where key = 'bootstrap'`);
+    await ok([7, 'hal@uni.edu'], 'select public.register_profile($1::jsonb)', [profile('faculty', 'Hal')]);
+    expect(await count(null, `select 1 from public.users where email = 'hal@uni.edu' and role = 'faculty'`)).toBe(1);
   });
 
   it('refuses duplicates, anonymous callers and demo claims on real deployments', async () => {
@@ -164,9 +208,26 @@ describe('projects', () => {
     expect(await count(null, 'select 1 from public.projects where member_ids ? $1', [bId])).toBe(1);
   });
 
+  it('lets only the team leader invite, and keeps leadership with faculty', async () => {
+    const withInvite = `update public.projects set data = jsonb_set(data, '{pendingInvites}', $1::jsonb) where id = 'p1'`;
+    await refused(B, withInvite, [JSON.stringify([cId])]); // Bea is a member, not the leader
+    await refused(B, `update public.projects set data = jsonb_set(data, '{ownerId}', to_jsonb($1::text)) where id = 'p1'`, [bId]);
+  });
+
   it('lets members work and faculty approve', async () => {
     await ok(B, `update public.projects set data = jsonb_set(data, '{description}', '"Updated"') where id = 'p1'`);
     await ok(F, `update public.projects set data = jsonb_set(data, '{status}', '"active"') where id = 'p1'`);
+  });
+
+  // Regression: the client once saved edits with an upsert. Postgres holds an
+  // upsert to the INSERT policy as well, and students may only insert *pending*
+  // projects — so every edit to an approved project failed. The client now uses
+  // UPDATE; this pins down why.
+  it('allows editing an approved project by UPDATE but not by upsert', async () => {
+    const edited = (await run(null, `select data from public.projects where id = 'p1'`)).rows[0].data as Record<string, unknown>;
+    const next = JSON.stringify({ ...edited, pendingInvites: [cId] });
+    await ok(A, `update public.projects set data = $1 where id = 'p1'`, [next]);
+    await refused(A, `insert into public.projects (id, data) values ('p1', $1) on conflict (id) do update set data = excluded.data`, [next]);
   });
 });
 
@@ -235,5 +296,18 @@ describe('demo deployments', () => {
     expect(await count(null, `select 1 from public.users where id = 'student_demo' and data ? 'passwordHash'`)).toBe(0);
     await ok([9, 'demo@uni.edu'], 'select public.claim_demo_profile()');
     await refused([8, 'demo@uni.edu'], 'select public.claim_demo_profile()');
+  });
+});
+
+describe('allow-list hardening', () => {
+  // Regression: with the key missing, `NOT (email ? NULL)` is NULL and the
+  // refusal was skipped, opening admin/faculty self-signup to anyone.
+  it('treats a missing adminEmails / facultyEmails key as "nobody"', async () => {
+    await db.exec(`update public.app_config set value = '{}' where key = 'bootstrap'`);
+    // Earlier tests turned this into a demo deployment, where faculty sign-up is open by design.
+    await db.exec(`update public.app_config set value = value || '{"demo": false}' where key = 'seed'`);
+    await refused([10, 'mallory@uni.edu'], 'select public.register_profile($1::jsonb)', [profile('admin', 'Mallory')]);
+    const res = await run([11, 'trent@uni.edu'], 'select public.register_profile($1::jsonb) as r', [profile('faculty', 'Trent')]);
+    expect(res.rows[0].r).toEqual({ status: 'pending' });
   });
 });

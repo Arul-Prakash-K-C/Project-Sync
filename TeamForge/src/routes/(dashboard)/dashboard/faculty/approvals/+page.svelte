@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { newId } from '$lib/utils/id';
-  import { db, type Project } from '$lib/services/db';
+  import { db, type Project, memberRoleLabel } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { CheckSquare, AlertTriangle, X, Check, MessageSquare } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -27,9 +27,7 @@
   function loadData() {
     if (auth.user) {
       // Department proposals, plus any from elsewhere that name this person as mentor.
-      projects = db
-        .getProjects()
-        .filter((p) => p.department === auth.user!.department || p.mentorId === auth.user!.id);
+      projects = db.getSupervisedProjects(auth.user!);
     }
   }
 
@@ -267,7 +265,7 @@
                       <Avatar src={member.avatar} name={member.name} size="xs" />
                       <span class="text-2xs font-bold text-foreground">
                         {member.name}
-                        <span class="font-normal text-muted-foreground">· {member.role}</span>
+                        <span class="font-normal text-muted-foreground">· {memberRoleLabel(p, member)}</span>
                       </span>
                     </li>
                   {/each}

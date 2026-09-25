@@ -26,6 +26,7 @@ export interface SyncIdentity {
 type Row = { id: string; data: Item };
 
 const STAFF_ONLY: CollectionKey[] = ['faculty_notes', 'audit_log'];
+const ADMIN_ONLY: CollectionKey[] = ['staff_requests'];
 const PAGE = 1000;
 
 let sb: SupabaseClient | null = null;
@@ -45,7 +46,9 @@ export async function flushWrites(): Promise<void> {
 
 function collectionsFor(who: SyncIdentity): CollectionKey[] {
   const staff = who.role === 'faculty' || who.role === 'admin';
-  return COLLECTION_KEYS.filter((k) => staff || !STAFF_ONLY.includes(k));
+  return COLLECTION_KEYS.filter(
+    (k) => (staff || !STAFF_ONLY.includes(k)) && (who.role === 'admin' || !ADMIN_ONLY.includes(k))
+  );
 }
 
 function publish(key: CollectionKey) {
@@ -134,9 +137,18 @@ async function pushWrite(key: CollectionKey, prev: unknown[], next: unknown[]) {
     const { error } = await sb.from(key).insert(rows);
     if (error) return reportWriteError(key, error);
   }
-  for (const rows of chunk(updates.map((i) => toRow(key, i)))) {
-    const { error } = await sb.from(key).upsert(rows, { onConflict: 'id' });
+  // Changed rows go through a real UPDATE, never an upsert: Postgres checks an
+  // upsert against the table's INSERT policy too, and that policy is stricter
+  // (e.g. a student may only *insert* a pending project, but may edit an
+  // approved one). An UPDATE hidden by RLS changes zero rows without raising,
+  // so the row count is checked explicitly.
+  for (const item of updates) {
+    const { data } = toRow(key, item);
+    const { error, count } = await sb.from(key).update({ data }, { count: 'exact' }).eq('id', item.id);
     if (error) return reportWriteError(key, error);
+    if (count === 0) {
+      return reportWriteError(key, { code: '42501', message: `row-level security: update of ${key}/${item.id} was not permitted` });
+    }
   }
   for (const ids of chunk(deletes)) {
     const { error } = await sb.from(key).delete().in('id', ids);

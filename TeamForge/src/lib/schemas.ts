@@ -204,6 +204,23 @@ export const AuditLogEntrySchema = z.object({
   createdAt: z.string()
 });
 
+export const StaffRequestSchema = z.object({
+  id: z.string(),
+  authUid: z.string().optional(),
+  name: z.string(),
+  email: z.string(),
+  department: z.string(),
+  role: z.literal('faculty'),
+  /** Local mode only: the chosen password's hash, used to create the account on approval. */
+  passwordHash: z.string().optional(),
+  profile: z.record(z.string(), z.unknown()).optional(),
+  status: z.enum(['pending', 'approved', 'rejected']),
+  createdAt: z.string(),
+  decidedAt: z.string().optional(),
+  decidedBy: z.string().optional(),
+  reason: z.string().optional()
+});
+
 export const FacultyNoteSchema = z.object({
   id: z.string(),
   projectId: z.string(),
