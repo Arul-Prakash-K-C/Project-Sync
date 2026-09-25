@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db, type NewProjectInput, TEAM_LEADER_ROLE, isTeamLeader, memberRoleLabel } from './db';
+import { db, type NewProjectInput, TEAM_LEADER_ROLE, isTeamLeader, memberRoleLabel, canManageProject } from './db';
 
 beforeEach(() => {
   localStorage.clear();
@@ -133,5 +133,17 @@ describe('mentor-only supervision', () => {
     expect(db.announcementReaches({ targetType: 'all', targetIds: ['p1'] }, 'p1')).toBe(true);
     expect(db.announcementReaches({ targetType: 'all', targetIds: ['p1'] }, 'p2')).toBe(false);
     expect(db.announcementReaches({ targetType: 'all', targetIds: [] }, 'p2')).toBe(true); // legacy broadcast
+  });
+});
+
+describe('who manages milestones and tasks', () => {
+  const p = { ownerId: 'student_alex', mentorId: 'faculty_evelyn' };
+  it('is the team leader, the mentor and admins — not other members or faculty', () => {
+    expect(canManageProject(p, { id: 'student_alex', role: 'student' })).toBe(true);
+    expect(canManageProject(p, { id: 'faculty_evelyn', role: 'faculty' })).toBe(true);
+    expect(canManageProject(p, { id: 'admin_sys', role: 'admin' })).toBe(true);
+    expect(canManageProject(p, { id: 'student_sarah', role: 'student' })).toBe(false);
+    expect(canManageProject(p, { id: 'faculty_julian', role: 'faculty' })).toBe(false);
+    expect(canManageProject(p, null)).toBe(false);
   });
 });

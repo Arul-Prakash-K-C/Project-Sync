@@ -12,7 +12,7 @@
     type Milestone,
     type WeeklyReport,
     type CategorizedFeedback,
-    type Meeting, memberRoleLabel, isTeamLeader } from '$lib/services/db';
+    type Meeting, memberRoleLabel, isTeamLeader, canManageProject } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { storeFileBlob, getFileBlob, formatBytes, inferFileCategory } from '$lib/services/fileStorage';
   import {
@@ -182,8 +182,13 @@
     }
   }
 
+  /** Team leader, mentor or admin — the only people who change milestones and tasks. */
+  const canManage = $derived(!!project && canManageProject(project, auth.user));
+  const MANAGE_ONLY = 'Only the team leader and the mentor can change milestones and tasks.';
+
   function toggleMilestone(mId: string) {
     if (!project) return;
+    if (!canManage) return toast.error(MANAGE_ONLY);
     try {
       const updated = project.milestones.map((m) => (m.id === mId ? { ...m, completed: !m.completed } : m));
       db.updateProject(project.id, { milestones: updated });
@@ -195,6 +200,10 @@
   }
 
   function addMilestone(e: SubmitEvent) {
+    if (!canManage) {
+      e.preventDefault();
+      return toast.error(MANAGE_ONLY);
+    }
     e.preventDefault();
     if (!project || !milestoneTitle) return;
     try {
@@ -262,6 +271,10 @@
   }
 
   function handleCreateTask(e: SubmitEvent) {
+    if (!canManage) {
+      e.preventDefault();
+      return toast.error(MANAGE_ONLY);
+    }
     e.preventDefault();
     if (!project) return;
     try {
@@ -288,6 +301,7 @@
   }
 
   function updateTaskColumn(taskId: string, col: Task['column']) {
+    if (!canManage) return toast.error(MANAGE_ONLY);
     try {
       db.updateTask(taskId, { column: col });
       loadData();
@@ -570,20 +584,25 @@
             {/if}
           </Card>
 
-          <Card title="Milestones">
+          <Card
+            title="Milestones"
+            description={canManage ? undefined : 'Set by your team leader and mentor.'}
+          >
             {#snippet actions()}
-              <Button
-                variant="outline"
-                size="sm"
-                aria-expanded={showMilestoneForm}
-                onclick={() => (showMilestoneForm = !showMilestoneForm)}
-              >
-                <Plus class="w-3.5 h-3.5" />
-                Add
-              </Button>
+              {#if canManage}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={showMilestoneForm}
+                  onclick={() => (showMilestoneForm = !showMilestoneForm)}
+                >
+                  <Plus class="w-3.5 h-3.5" />
+                  Add
+                </Button>
+              {/if}
             {/snippet}
 
-            {#if showMilestoneForm}
+            {#if showMilestoneForm && canManage}
               <form
                 onsubmit={addMilestone}
                 class="p-3.5 border border-border rounded-md flex flex-col sm:flex-row gap-3 bg-muted/30 items-end mb-4"
@@ -615,18 +634,28 @@
                     hover:bg-muted/30 transition-colors"
                 >
                   <div class="flex items-center gap-3 min-w-0">
-                    <button
-                      onclick={() => toggleMilestone(m.id)}
-                      aria-pressed={m.completed}
-                      aria-label="{m.completed ? 'Mark incomplete' : 'Mark complete'}: {m.title}"
-                      class="shrink-0 rounded-sm text-muted-foreground hover:text-accent cursor-pointer transition-colors"
-                    >
-                      {#if m.completed}
-                        <CheckCircle2 class="w-5 h-5 text-success" />
-                      {:else}
-                        <Circle class="w-5 h-5" />
-                      {/if}
-                    </button>
+                    {#if canManage}
+                      <button
+                        onclick={() => toggleMilestone(m.id)}
+                        aria-pressed={m.completed}
+                        aria-label="{m.completed ? 'Mark incomplete' : 'Mark complete'}: {m.title}"
+                        class="shrink-0 rounded-sm text-muted-foreground hover:text-accent cursor-pointer transition-colors"
+                      >
+                        {#if m.completed}
+                          <CheckCircle2 class="w-5 h-5 text-success" />
+                        {:else}
+                          <Circle class="w-5 h-5" />
+                        {/if}
+                      </button>
+                    {:else}
+                      <span class="shrink-0 text-muted-foreground" aria-label={m.completed ? 'Completed' : 'Not completed'}>
+                        {#if m.completed}
+                          <CheckCircle2 class="w-5 h-5 text-success" />
+                        {:else}
+                          <Circle class="w-5 h-5" />
+                        {/if}
+                      </span>
+                    {/if}
                     <span
                       class="text-sm font-semibold truncate {m.completed
                         ? 'line-through text-muted-foreground'
@@ -717,10 +746,17 @@
       <div class="flex flex-col gap-4">
         <div class="flex justify-between items-center gap-3">
           <h2 class="font-display text-lg text-foreground">Task board</h2>
-          <Button variant="primary" size="sm" onclick={() => (newTaskDialogOpen = true)}>
-            <Plus class="w-3.5 h-3.5" />
-            New task
-          </Button>
+          {#if !canManage}
+            <p class="text-2xs text-muted-foreground">
+              The task board is managed by your team leader and mentor. You can comment on any task.
+            </p>
+          {/if}
+          {#if canManage}
+            <Button variant="primary" size="sm" onclick={() => (newTaskDialogOpen = true)}>
+              <Plus class="w-3.5 h-3.5" />
+              New task
+            </Button>
+          {/if}
         </div>
 
         <!-- Four lanes side by side on desktop; on narrow screens they stack so
@@ -769,19 +805,21 @@
 
                     <!-- Status is a labelled select rather than a drag gesture,
                          so moving a task works with a keyboard and on touch. -->
-                    <div class="px-3.5 pb-3 pt-0">
-                      <label for="move-{t.id}" class="sr-only">Status of "{t.title}"</label>
-                      <select
-                        id="move-{t.id}"
-                        value={t.column}
-                        onchange={(e) => updateTaskColumn(t.id, (e.target as HTMLSelectElement).value as any)}
-                        class="field-select h-8 w-full text-2xs font-semibold"
-                      >
-                        {#each columns as target (target.key)}
-                          <option value={target.key}>{target.label}</option>
-                        {/each}
-                      </select>
-                    </div>
+                    {#if canManage}
+                      <div class="px-3.5 pb-3 pt-0">
+                        <label for="move-{t.id}" class="sr-only">Status of "{t.title}"</label>
+                        <select
+                          id="move-{t.id}"
+                          value={t.column}
+                          onchange={(e) => updateTaskColumn(t.id, (e.target as HTMLSelectElement).value as any)}
+                          class="field-select h-8 w-full text-2xs font-semibold"
+                        >
+                          {#each columns as target (target.key)}
+                            <option value={target.key}>{target.label}</option>
+                          {/each}
+                        </select>
+                      </div>
+                    {/if}
                   </li>
                 {:else}
                   <li

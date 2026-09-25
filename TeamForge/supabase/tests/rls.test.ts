@@ -232,9 +232,32 @@ describe('projects', () => {
 });
 
 describe('project work', () => {
-  it('limits tasks to members', async () => {
-    await ok(B, `insert into public.tasks (id, data) values ('t1', '{"id":"t1","projectId":"p1"}')`);
-    await refused(C, `insert into public.tasks (id, data) values ('t2', '{"id":"t2","projectId":"p1"}')`);
+  it('lets only the team leader and mentor manage the task board', async () => {
+    const task = (id: string) => JSON.stringify({ id, projectId: 'p1', title: 'T', column: 'todo', comments: [] });
+    await refused(B, `insert into public.tasks (id, data) values ('t_member', $1)`, [task('t_member')]); // member
+    await refused(C, `insert into public.tasks (id, data) values ('t_out', $1)`, [task('t_out')]); // outsider
+    await ok(A, `insert into public.tasks (id, data) values ('t1', $1)`, [task('t1')]); // team leader
+    await ok(F, `insert into public.tasks (id, data) values ('t_mentor', $1)`, [task('t_mentor')]); // mentor
+  });
+
+  it('lets members comment but not move, edit or delete tasks', async () => {
+    const comment = JSON.stringify([{ id: 'c1', userName: 'Bea', text: 'On it', createdAt: '' }]);
+    await ok(B, `update public.tasks set data = jsonb_set(data, '{comments}', $1::jsonb) where id = 't1'`, [comment]);
+    await refused(B, `update public.tasks set data = jsonb_set(data, '{column}', '"completed"') where id = 't1'`);
+    await refused(B, `update public.tasks set data = jsonb_set(data, '{comments}', '[]'::jsonb) where id = 't1'`); // erasing comments
+    expect(await count(B, `delete from public.tasks where id = 't1' returning id`)).toBe(0);
+    await ok(A, `update public.tasks set data = jsonb_set(data, '{column}', '"inprogress"') where id = 't1'`);
+    await ok(F, `update public.tasks set data = jsonb_set(data, '{column}', '"review"') where id = 't1'`);
+    expect(await count(B, `select 1 from public.tasks where id = 't1' and data->>'column' = 'review'`)).toBe(1); // member sees it
+  });
+
+  it('lets only the team leader and mentor change milestones', async () => {
+    const withMilestone = `update public.projects set data = jsonb_set(data, '{milestones}', $1::jsonb) where id = 'p1'`;
+    const m = (done: boolean) => JSON.stringify([{ id: 'm1', title: 'Spec', deadline: '2026-10-01', completed: done }]);
+    await refused(B, withMilestone, [m(false)]); // member
+    await ok(A, withMilestone, [m(false)]); // team leader
+    await ok(F, withMilestone, [m(true)]); // mentor
+    expect(await count(B, `select 1 from public.projects where id = 'p1' and data->'milestones'->0->>'completed' = 'true'`)).toBe(1);
   });
 
   it('keeps report review with faculty', async () => {

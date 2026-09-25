@@ -143,6 +143,19 @@ export function isTeamLeader(project: Pick<Project, 'ownerId'>, userId: string |
   return !!userId && project.ownerId === userId;
 }
 
+/**
+ * Who may create and change a project's milestones and task board: its team
+ * leader, its mentor, and administrators. Everyone else on the team sees the
+ * same board (read-only) and can still comment on tasks.
+ */
+export function canManageProject(
+  project: Pick<Project, 'ownerId' | 'mentorId'>,
+  user: Pick<User, 'id' | 'role'> | null | undefined
+): boolean {
+  if (!user) return false;
+  return user.role === 'admin' || project.ownerId === user.id || (!!project.mentorId && project.mentorId === user.id);
+}
+
 /** Role shown for a member: the owner is always the Team Leader. */
 export function memberRoleLabel(project: Pick<Project, 'ownerId'>, member: ProjectMember): string {
   return member.userId === project.ownerId ? TEAM_LEADER_ROLE : member.role;
