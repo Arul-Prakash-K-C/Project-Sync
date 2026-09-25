@@ -28,7 +28,8 @@
   function loadData() {
     if (auth.user) {
       projects = db.getSupervisedProjects(auth.user!);
-      announcements = db.getAnnouncements();
+      // Only announcements that went to this faculty member's own teams.
+      announcements = db.getAnnouncements().filter((a) => projects.some((p) => db.announcementReaches(a, p.id)));
     }
   }
 

@@ -86,7 +86,8 @@ describe('supervised projects', () => {
     const p = db.createProject(input({ department: 'Computer Science & Engineering', mentorId: julian.id }), owner());
     const supervised = db.getSupervisedProjects(julian).map((x) => x.id);
     expect(supervised).toContain(p.id);
-    expect(db.getSupervisedProjects(db.getUser('faculty_evelyn')!).map((x) => x.id)).toContain(p.id); // same department
+    // Evelyn is in the project's department but isn't its mentor, so she doesn't see it.
+    expect(db.getSupervisedProjects(db.getUser('faculty_evelyn')!).map((x) => x.id)).not.toContain(p.id);
   });
 });
 
@@ -109,5 +110,28 @@ describe('team leader', () => {
     db.inviteToProject(p.id, 'sarah@teamforge.edu', { id: 'student_alex' });
     db.acceptInvite(p.id, 'student_sarah');
     expect(() => db.inviteToProject(p.id, 'marcus@teamforge.edu', { id: 'student_sarah' })).toThrow(/team leader/);
+  });
+});
+
+describe('mentor-only supervision', () => {
+  it("shows a project only to the faculty member chosen as its mentor", () => {
+    const julian = db.getUser('faculty_julian')!;
+    const evelyn = db.getUser('faculty_evelyn')!; // same department as the project, but not its mentor
+    const p = db.createProject(input({ department: 'Computer Science & Engineering', mentorId: julian.id }), owner());
+    expect(db.getSupervisedProjects(julian).map((x) => x.id)).toContain(p.id);
+    expect(db.getSupervisedProjects(evelyn).map((x) => x.id)).not.toContain(p.id);
+  });
+
+  it("falls back to the department's faculty for projects with no mentor", () => {
+    const evelyn = db.getUser('faculty_evelyn')!;
+    const legacy = { ...db.getProjects()[0], id: 'p_legacy', mentorId: undefined, mentorName: undefined };
+    db.saveProjects([...db.getProjects(), legacy]);
+    expect(db.getSupervisedProjects(evelyn).map((x) => x.id)).toContain('p_legacy');
+  });
+
+  it('delivers announcements only to the teams they list', () => {
+    expect(db.announcementReaches({ targetType: 'all', targetIds: ['p1'] }, 'p1')).toBe(true);
+    expect(db.announcementReaches({ targetType: 'all', targetIds: ['p1'] }, 'p2')).toBe(false);
+    expect(db.announcementReaches({ targetType: 'all', targetIds: [] }, 'p2')).toBe(true); // legacy broadcast
   });
 });

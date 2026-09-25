@@ -118,7 +118,7 @@
       const studentProjectIds = projects.map((p) => p.id);
       announcements = db
         .getAnnouncements()
-        .filter((a) => a.targetType === 'all' || a.targetIds.some((id) => studentProjectIds.includes(id)));
+        .filter((a) => studentProjectIds.some((id) => db.announcementReaches(a, id)));
 
       // Load scheduled meetings for student's projects
       meetings = db

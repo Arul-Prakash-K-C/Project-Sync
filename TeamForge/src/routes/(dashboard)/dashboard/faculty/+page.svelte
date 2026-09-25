@@ -23,7 +23,7 @@
   function loadData() {
     if (auth.user) {
       projects = db.getSupervisedProjects(auth.user!);
-      weeklyReports = db.getWeeklyReports();
+      weeklyReports = db.getWeeklyReports().filter((r) => projects.some((p) => p.id === r.projectId));
     }
   }
 
