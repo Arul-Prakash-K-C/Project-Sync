@@ -814,12 +814,25 @@ class DatabaseService {
 
   // Projects CRUD
   /**
-   * The projects a faculty member supervises: every project in their
-   * department, plus any elsewhere that named them as mentor. Every faculty
-   * page uses this, so a cross-department mentor can review what they approved.
+   * The projects a faculty member supervises: the ones whose students chose
+   * them as mentor. Other faculty never see those teams. A project recorded
+   * before mentors existed (no mentorId) falls back to its department's
+   * faculty so it is never left unsupervised. Every faculty page uses this;
+   * the database enforces the same rule (see public.supervises()).
    */
   getSupervisedProjects(faculty: Pick<User, 'id' | 'department'>): Project[] {
-    return this.getProjects().filter((p) => p.department === faculty.department || p.mentorId === faculty.id);
+    return this.getProjects().filter((p) =>
+      p.mentorId ? p.mentorId === faculty.id : p.department === faculty.department
+    );
+  }
+
+  /**
+   * Whether an announcement is addressed to a project. "All teams" posts record
+   * the exact teams they went to, so they reach only that faculty member's
+   * mentees; only legacy broadcasts with no recorded targets reach everyone.
+   */
+  announcementReaches(a: Pick<Announcement, 'targetType' | 'targetIds'>, projectId: string): boolean {
+    return a.targetIds.includes(projectId) || (a.targetType === 'all' && a.targetIds.length === 0);
   }
 
   /** Faculty accounts a project can name as its mentor. */
@@ -1274,7 +1287,7 @@ class DatabaseService {
   getAnnouncements(projectId?: string): Announcement[] {
     const announcements = this.getStorage('announcements', [] as Announcement[], z.array(AnnouncementSchema));
     if (!projectId) return announcements;
-    return announcements.filter(a => a.targetType === 'all' || a.targetIds.includes(projectId));
+    return announcements.filter(a => this.announcementReaches(a, projectId));
   }
 
   saveAnnouncements(announcements: Announcement[]): void {

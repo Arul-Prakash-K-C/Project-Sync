@@ -193,9 +193,9 @@ describe('projects', () => {
     await refused(A, `update public.projects set data = jsonb_set(data, '{status}', '"active"') where id = 'p1'`);
   });
 
-  it('lets outsiders only ask to join', async () => {
-    await refused(C, `update public.projects set data = jsonb_set(data, '{name}', '"Mine"') where id = 'p1'`);
-    await ok(C, `update public.projects set data = jsonb_set(data, '{pendingRequests}', $1::jsonb) where id = 'p1'`, [JSON.stringify([cId])]);
+  it("keeps outsiders out: they can't see, let alone change, another team", async () => {
+    expect(await count(C, `update public.projects set data = jsonb_set(data, '{name}', '"Mine"') where id = 'p1' returning id`)).toBe(0);
+    expect(await count(null, `select 1 from public.projects where id = 'p1' and data->>'name' = 'P'`)).toBe(1);
   });
 
   it('runs the invite flow', async () => {
@@ -309,5 +309,58 @@ describe('allow-list hardening', () => {
     await refused([10, 'mallory@uni.edu'], 'select public.register_profile($1::jsonb)', [profile('admin', 'Mallory')]);
     const res = await run([11, 'trent@uni.edu'], 'select public.register_profile($1::jsonb) as r', [profile('faculty', 'Trent')]);
     expect(res.rows[0].r).toEqual({ status: 'pending' });
+  });
+});
+
+describe('mentor-scoped faculty access', () => {
+  const HAL = [7, 'hal@uni.edu'] as const; // faculty, same department, NOT p1's mentor
+  const DAN = [12, 'dan@uni.edu'] as const; // a student with no link to p1
+
+  it('registers an unrelated student for the checks below', async () => {
+    await ok(DAN, 'select public.register_profile($1::jsonb)', [profile('student', 'Dan')]);
+  });
+
+  it("hides a team from faculty who aren't its mentor", async () => {
+    expect(await count(F, `select 1 from public.projects where id = 'p1'`)).toBe(1); // Fay mentors p1
+    expect(await count(HAL, `select 1 from public.projects where id = 'p1'`)).toBe(0);
+    expect(await count(HAL, `select 1 from public.tasks where project_id = 'p1'`)).toBe(0);
+    expect(await count(HAL, `select 1 from public.weekly_reports where project_id = 'p1'`)).toBe(0);
+    expect(await count(HAL, `select 1 from public.files where project_id = 'p1'`)).toBe(0);
+    expect(await count(HAL, `select 1 from public.faculty_notes where project_id = 'p1'`)).toBe(0);
+  });
+
+  it("stops other faculty from supervising someone else's team", async () => {
+    expect(await count(HAL, `update public.projects set data = jsonb_set(data, '{status}', '"archived"') where id = 'p1' returning id`)).toBe(0);
+    await refused(HAL, `insert into public.meetings (id, data) values ('m_hal', '{"id":"m_hal","projectId":"p1"}')`);
+    await refused(HAL, `insert into public.faculty_notes (id, data) values ('fn_hal', '{"id":"fn_hal","projectId":"p1"}')`);
+    await refused(HAL, `insert into public.tasks (id, data) values ('t_hal', '{"id":"t_hal","projectId":"p1"}')`);
+    await ok(F, `insert into public.meetings (id, data) values ('m_fay', '{"id":"m_fay","projectId":"p1"}')`);
+  });
+
+  it('keeps students to their own teams', async () => {
+    expect(await count(DAN, `select 1 from public.projects where id = 'p1'`)).toBe(0); // outsider
+    expect(await count(B, `select 1 from public.projects where id = 'p1'`)).toBe(1); // member
+    expect(await count(C, `select 1 from public.projects where id = 'p1'`)).toBe(1); // invited, may look before accepting
+    expect(await count(DAN, `select 1 from public.meetings where project_id = 'p1'`)).toBe(0);
+  });
+
+  it('delivers announcements only to the teams they target', async () => {
+    const ann = (id: string, targets: string[]) =>
+      JSON.stringify({ id, targetType: 'all', targetIds: targets, title: 'Hi', content: 'x', facultyName: 'F', createdAt: '' });
+    await ok(F, `insert into public.announcements (id, data) values ('a_fay', $1)`, [ann('a_fay', ['p1'])]);
+    await refused(HAL, `insert into public.announcements (id, data) values ('a_hal', $1)`, [ann('a_hal', ['p1'])]);
+    expect(await count(B, `select 1 from public.announcements where id = 'a_fay'`)).toBe(1);
+    expect(await count(DAN, `select 1 from public.announcements where id = 'a_fay'`)).toBe(0);
+    expect(await count(HAL, `select 1 from public.announcements where id = 'a_fay'`)).toBe(0);
+  });
+
+  it("gives a mentor-less legacy project to its department's faculty", async () => {
+    const legacy = JSON.stringify({ id: 'p_old', name: 'Old', status: 'active', ownerId: cId, department: 'CSE', members: [{ userId: cId }], pendingInvites: [], pendingRequests: [] });
+    await ok(M, `insert into public.projects (id, data) values ('p_old', $1)`, [legacy]);
+    expect(await count(HAL, `select 1 from public.projects where id = 'p_old'`)).toBe(1);
+  });
+
+  it('lets admins see every team', async () => {
+    expect(await count(M, `select 1 from public.projects where id in ('p1', 'p_old')`)).toBe(2);
   });
 });

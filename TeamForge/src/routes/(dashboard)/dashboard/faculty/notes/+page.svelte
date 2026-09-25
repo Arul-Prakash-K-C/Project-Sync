@@ -23,7 +23,7 @@
   function loadData() {
     if (auth.user) {
       projects = db.getSupervisedProjects(auth.user!);
-      facultyNotes = db.getFacultyNotes();
+      facultyNotes = db.getFacultyNotes().filter((n) => projects.some((p) => p.id === n.projectId));
 
       const activeP = projects.filter((p) => p.status === 'active');
       if (activeP.length > 0) {
