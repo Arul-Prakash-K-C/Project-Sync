@@ -3,16 +3,20 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type User, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
-  import { calculateCompatibilityBreakdown } from '$lib/utils/compatibility';
-  import { Search, Compass, UserPlus, Sparkles, X, PieChart, SlidersHorizontal } from 'lucide-svelte';
+  import { page } from '$app/stores';
+  import {
+    calculateCompatibilityBreakdown,
+    missingTeamSkills,
+    type MatchContext
+  } from '$lib/utils/compatibility';
+  import { Search, Compass, UserPlus, Sparkles, X, SlidersHorizontal, Target } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
-  import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
   import PageHeader from '$lib/components/ui/PageHeader.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
-  import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import DossierCard from '$lib/components/DossierCard.svelte';
 
   let searchVal = $state('');
   let filterDept = $state('All');
@@ -25,6 +29,10 @@
 
   let allUsers = $state<User[]>([]);
   let myProjects = $state<Project[]>([]);
+  /** Projects this student leads that are still forming: matching can target their skill gaps. */
+  let ledProjects = $state<Project[]>([]);
+  /** '' = general matching, otherwise a led project's id. */
+  let matchFor = $state('');
 
   const allSkills = $derived([...new Set(allUsers.flatMap((u) => u.skills))].sort());
   const visibleSkills = $derived(showAllSkills ? allSkills : allSkills.slice(0, 12));
@@ -48,6 +56,9 @@
 
   onMount(() => {
     loadData();
+    // The command palette links people here as ?q=<name>.
+    const q = $page.url.searchParams.get('q');
+    if (q) searchVal = q;
     loaded = true;
   });
 
@@ -55,19 +66,26 @@
     if (auth.user) {
       allUsers = db.getUsers().filter((u) => u.id !== auth.user!.id && u.role === 'student');
       myProjects = db.getProjects().filter((p) => p.ownerId === auth.user!.id && p.status === 'active');
+      ledProjects = db
+        .getProjects()
+        .filter((p) => p.ownerId === auth.user!.id && (p.status === 'active' || p.status === 'pending'));
       if (myProjects.length > 0) {
         selectedProjectId = myProjects[0].id;
       }
     }
   }
 
-  function calculateCompatibility(target: User): number {
-    if (!auth.user) return 0;
-    return calculateCompatibilityBreakdown(auth.user, target).total;
-  }
+  /** The team's missing required skills, when matching for a project. */
+  const matchedProject = $derived(ledProjects.find((p) => p.id === matchFor));
+  const context = $derived.by((): MatchContext | undefined => {
+    const project = matchedProject;
+    if (!project?.requiredSkills?.length) return undefined;
+    const teamSkills = project.members.flatMap((m) => db.getUser(m.userId)?.skills ?? []);
+    return { projectName: project.name, neededSkills: missingTeamSkills(project.requiredSkills, teamSkills) };
+  });
 
   const breakdown = $derived(
-    breakdownTarget && auth.user ? calculateCompatibilityBreakdown(auth.user, breakdownTarget) : null
+    breakdownTarget && auth.user ? calculateCompatibilityBreakdown(auth.user, breakdownTarget, context) : null
   );
 
   function openBreakdown(user: User) {
@@ -77,7 +95,10 @@
 
   const teammates = $derived(
     allUsers
-      .map((u) => ({ ...u, compatibility: calculateCompatibility(u) }))
+      .map((u) => {
+        const breakdown = calculateCompatibilityBreakdown(auth.user!, u, context);
+        return { ...u, breakdown, compatibility: breakdown.total };
+      })
       .filter((u) => {
         const matchesSearch =
           u.name.toLowerCase().includes(searchVal.toLowerCase()) ||
@@ -85,7 +106,9 @@
         const matchesDept = filterDept === 'All' || u.department === filterDept;
         const matchesYear = filterYear === 'All' || u.academicYear === filterYear;
         const matchesSkills = selectedSkills.length === 0 || selectedSkills.some((s) => u.skills.includes(s));
-        return matchesSearch && matchesDept && matchesYear && matchesSkills && u.availability;
+        // Matching for a team: people already on it (or invited) aren't candidates.
+        const alreadyOnTeam = !!matchedProject?.members.some((m) => m.userId === u.id) || !!matchedProject?.pendingInvites.includes(u.id);
+        return matchesSearch && matchesDept && matchesYear && matchesSkills && u.availability && !alreadyOnTeam;
       })
       .sort((a, b) => b.compatibility - a.compatibility)
   );
@@ -102,12 +125,6 @@
     filterDept = 'All';
     filterYear = 'All';
     selectedSkills = [];
-  }
-
-  function scoreTone(score: number): 'success' | 'accent' | 'neutral' {
-    if (score >= 75) return 'success';
-    if (score >= 50) return 'accent';
-    return 'neutral';
   }
 
   function openInviteModal(user: User) {
@@ -135,7 +152,7 @@
 </script>
 
 <svelte:head>
-  <title>Team Finder — TeamForge</title>
+  <title>Team Finder — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -143,8 +160,35 @@
     <PageHeader
       title="Team Finder"
       icon={Compass}
-      description="Classmates who are open to projects, ranked by how well their department, standing and skills line up with yours."
+      description="Classmates open to projects, ranked by the matching engine: common ground, the skill areas they add, and how well they fill your team's gaps."
     />
+
+    {#if ledProjects.length > 0}
+      <section
+        aria-label="Matching target"
+        class="flex flex-col sm:flex-row sm:items-center gap-2.5 p-3 rounded-lg border border-accent/30 bg-accent/6"
+      >
+        <label for="tf-for" class="flex items-center gap-2 text-xs font-bold text-foreground shrink-0">
+          <Target class="w-4 h-4 text-accent" aria-hidden="true" />
+          Match for
+        </label>
+        <select id="tf-for" bind:value={matchFor} class="field-select sm:w-72">
+          <option value="">Me in general</option>
+          {#each ledProjects as p (p.id)}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
+        <p class="text-2xs text-muted-foreground">
+          {#if context && context.neededSkills.length > 0}
+            Still needed: <span class="font-semibold text-foreground">{context.neededSkills.join(', ')}</span>
+          {:else if context}
+            Your team already covers every required skill.
+          {:else}
+            Ranked on your own profile.
+          {/if}
+        </p>
+      </section>
+    {/if}
 
     <!-- Filter toolbar -->
     <section aria-label="Filters" class="flex flex-col gap-3">
@@ -254,63 +298,14 @@
       <ul class="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {#each teammates as t (t.id)}
           <li>
-            <Card hoverable class="h-full flex flex-col">
-              <div class="flex items-start gap-3.5">
-                <Avatar src={t.avatar} name={t.name} size="lg" />
-
-                <div class="flex-1 min-w-0">
-                  <h2 class="text-base font-bold text-foreground truncate">{t.name}</h2>
-                  <p class="text-xs text-muted-foreground truncate mt-0.5">{t.department}</p>
-                  <p class="eyebrow mt-1">{t.academicYear}</p>
-                </div>
-
-                <!-- The score is the reason this card is where it is in the
-                     list, so it reads as a figure with a meter, not a footnote. -->
-                <div class="shrink-0 w-24 text-right">
-                  <p class="eyebrow">Match</p>
-                  <p class="font-display text-xl text-foreground tabular leading-none mt-1">
-                    {t.compatibility}%
-                  </p>
-                  <ProgressBar
-                    class="mt-2"
-                    value={t.compatibility}
-                    tone={scoreTone(t.compatibility)}
-                    size="sm"
-                    label="Compatibility with {t.name}"
-                  />
-                </div>
-              </div>
-
-              <p class="text-xs text-muted-foreground mt-3.5 line-clamp-2 leading-relaxed">
-                {t.bio || 'No biography provided yet.'}
-              </p>
-
-              <div class="flex flex-wrap gap-1.5 mt-3">
-                {#each t.skills.slice(0, 5) as s (s)}
-                  <!-- Shared skills are tinted so the overlap that drives the
-                       score is visible without opening the breakdown. -->
-                  <Badge variant={auth.user.skills.includes(s) ? 'primary' : 'secondary'} size="sm">
-                    {s}
-                  </Badge>
-                {:else}
-                  <span class="text-2xs text-muted-foreground">No skills listed</span>
-                {/each}
-                {#if t.skills.length > 5}
-                  <Badge variant="outline" size="sm">+{t.skills.length - 5}</Badge>
-                {/if}
-              </div>
-
-              <div class="mt-auto pt-4 flex items-center justify-end gap-2">
-                <Button variant="ghost" size="sm" onclick={() => openBreakdown(t)}>
-                  <PieChart class="w-3.5 h-3.5" />
-                  Why this score
-                </Button>
-                <Button variant="outline" size="sm" onclick={() => openInviteModal(t)}>
-                  <UserPlus class="w-3.5 h-3.5" />
-                  Invite
-                </Button>
-              </div>
-            </Card>
+            <DossierCard
+              user={t}
+              breakdown={t.breakdown}
+              mySkills={auth.user.skills}
+              neededSkills={context?.neededSkills ?? []}
+              onbreakdown={() => openBreakdown(t)}
+              oninvite={() => openInviteModal(t)}
+            />
           </li>
         {:else}
           <li class="col-span-full">
@@ -319,7 +314,9 @@
               title={activeFilterCount > 0 ? 'No teammates match these filters' : 'No teammates available'}
               description={activeFilterCount > 0
                 ? 'Try widening the department or standing filter, or removing a skill.'
-                : 'Everyone in the directory has turned off "open to projects" for now. Check back later.'}
+                : matchedProject
+                  ? `Everyone open to projects is already on or invited to ${matchedProject.name}. Switch "Match for" to see the whole directory.`
+                  : 'Everyone in the directory has turned off "open to projects" for now. Check back later.'}
             >
               {#snippet action()}
                 {#if activeFilterCount > 0}
@@ -337,7 +334,7 @@
     {#if selectedUserForInvite}
       <form id="invite-form" onsubmit={handleSendInvite} class="flex flex-col gap-4">
         <div class="p-3 border border-border rounded-md flex gap-3 bg-muted/30 items-center">
-          <Avatar src={selectedUserForInvite.avatar} name={selectedUserForInvite.name} size="md" />
+          <Avatar src={selectedUserForInvite.avatar} userId={selectedUserForInvite.id} name={selectedUserForInvite.name} size="md" />
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold text-foreground truncate">{selectedUserForInvite.name}</span>
             <span class="text-2xs text-muted-foreground truncate">{selectedUserForInvite.email}</span>
@@ -366,11 +363,12 @@
     bind:open={breakdownDialogOpen}
     title="Compatibility breakdown"
     description="How this match score was calculated."
+    size="lg"
   >
     {#if breakdownTarget && breakdown}
       <div class="flex flex-col gap-4">
         <div class="flex items-center gap-3 p-3 border border-border rounded-md bg-muted/30">
-          <Avatar src={breakdownTarget.avatar} name={breakdownTarget.name} size="md" />
+          <Avatar src={breakdownTarget.avatar} userId={breakdownTarget.id} name={breakdownTarget.name} size="md" />
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-bold text-foreground truncate">{breakdownTarget.name}</span>
             <span class="text-2xs text-muted-foreground truncate">{breakdownTarget.department}</span>
@@ -382,69 +380,50 @@
         </div>
 
         <dl class="flex flex-col text-xs">
-          <div class="flex justify-between gap-4 py-2.5 border-b border-border">
-            <dt class="font-semibold text-foreground">Base score</dt>
-            <dd class="font-bold text-foreground tabular shrink-0">+{breakdown.base}</dd>
-          </div>
-
-          <div class="flex justify-between gap-4 py-2.5 border-b border-border">
-            <dt class="font-semibold text-foreground">
-              Department
-              <span class="block font-normal text-muted-foreground mt-0.5">
-                {breakdown.departmentMatch
-                  ? `Both in ${breakdownTarget.department}`
-                  : 'Different departments'}
-              </span>
-            </dt>
-            <dd class="font-bold text-foreground tabular shrink-0">+{breakdown.departmentPoints}</dd>
-          </div>
-
-          <div class="flex justify-between gap-4 py-2.5 border-b border-border">
-            <dt class="font-semibold text-foreground">
-              Academic year
-              <span class="block font-normal text-muted-foreground mt-0.5">
-                {breakdown.yearMatch ? `Both ${breakdownTarget.academicYear}` : 'Different standing'}
-              </span>
-            </dt>
-            <dd class="font-bold text-foreground tabular shrink-0">+{breakdown.yearPoints}</dd>
-          </div>
-
-          <div class="flex justify-between gap-4 py-2.5 border-b border-border">
-            <dt class="font-semibold text-foreground min-w-0">
-              Shared skills ({breakdown.commonSkills.length})
-              {#if breakdown.commonSkills.length > 0}
-                <span class="flex flex-wrap gap-1 mt-1.5">
-                  {#each breakdown.commonSkills as s (s)}
-                    <Badge variant="primary" size="sm">{s}</Badge>
-                  {/each}
-                </span>
-              {:else}
-                <span class="block font-normal text-muted-foreground mt-0.5">
-                  No overlapping skills listed.
-                </span>
-              {/if}
-            </dt>
-            <dd class="font-bold text-foreground tabular shrink-0">+{breakdown.skillPoints}</dd>
-          </div>
-
-          <div class="flex justify-between gap-4 py-2.5">
-            <dt class="font-semibold text-foreground min-w-0">
-              Shared interests ({breakdown.commonInterests.length})
-              {#if breakdown.commonInterests.length > 0}
-                <span class="flex flex-wrap gap-1 mt-1.5">
-                  {#each breakdown.commonInterests as i (i)}
-                    <Badge variant="secondary" size="sm">{i}</Badge>
-                  {/each}
-                </span>
-              {:else}
-                <span class="block font-normal text-muted-foreground mt-0.5">
-                  No overlapping interests listed.
-                </span>
-              {/if}
-            </dt>
-            <dd class="font-bold text-foreground tabular shrink-0">+{breakdown.interestPoints}</dd>
-          </div>
+          {#each breakdown.factors as f (f.key)}
+            <div class="flex justify-between gap-4 py-2.5 border-b border-border last:border-b-0">
+              <dt class="min-w-0">
+                <span class="font-semibold text-foreground">{f.label}</span>
+                <span class="block font-normal text-muted-foreground mt-0.5">{f.detail}</span>
+                {#if f.key === 'common' && (breakdown.sharedSkills.length || breakdown.relatedSkills.length)}
+                  <span class="flex flex-wrap gap-1 mt-1.5">
+                    {#each breakdown.sharedSkills as s (s)}
+                      <Badge variant="primary" size="sm">{s}</Badge>
+                    {/each}
+                    {#each breakdown.relatedSkills as r (r.theirs)}
+                      <Badge variant="outline" size="sm" title="Related to your {r.mine}">{r.theirs} ≈ {r.mine}</Badge>
+                    {/each}
+                  </span>
+                {:else if f.key === 'complement' && breakdown.newFamilies.length}
+                  <span class="flex flex-wrap gap-1 mt-1.5">
+                    {#each breakdown.newFamilies as fam (fam.family)}
+                      <Badge variant="info" size="sm" title={fam.skills.join(', ')}>{fam.label}</Badge>
+                    {/each}
+                  </span>
+                {:else if f.key === 'project' && breakdown.projectFit}
+                  <span class="flex flex-wrap gap-1 mt-1.5">
+                    {#each breakdown.projectFit.coverage as c (c.need)}
+                      <Badge
+                        variant={c.score === 1 ? 'success' : c.score > 0 ? 'warning' : 'outline'}
+                        size="sm"
+                        title={c.score === 1 ? 'Has this skill' : c.score > 0 ? `Related skill: ${c.by}` : 'Not covered'}
+                      >
+                        {c.need}{c.score > 0 && c.score < 1 ? ` ≈ ${c.by}` : ''}
+                      </Badge>
+                    {/each}
+                  </span>
+                {/if}
+              </dt>
+              <dd class="font-bold text-foreground tabular shrink-0">
+                +{f.points}<span class="font-normal text-muted-foreground">/{f.max}</span>
+              </dd>
+            </div>
+          {/each}
         </dl>
+        <p class="text-2xs text-muted-foreground">
+          The match is the points earned out of the points available{context ? '' : ' (no project fit when matching in general)'}.
+          Related skills come from a skill graph: React and Svelte are both frontend, so each counts as half a match for the other.
+        </p>
       </div>
     {/if}
 

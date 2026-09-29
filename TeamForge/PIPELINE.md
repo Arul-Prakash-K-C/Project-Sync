@@ -1,6 +1,6 @@
-# TeamForge — Architecture & Delivery Log
+# Project-Sync — Architecture & Delivery Log
 
-> TeamForge is a SvelteKit web app for university capstone courses. It has three roles: **student**, **faculty** and **admin**. Students form teams and run projects (Kanban, milestones, weekly reports, files, discussion). Faculty supervise (approvals, reviews, attendance, analytics, reports, announcements). Admins manage the platform.
+> Project-Sync is a SvelteKit web app for university capstone courses. It has three roles: **student**, **faculty** and **admin**. Students form teams and run projects (Kanban, milestones, weekly reports, files, discussion). Faculty supervise (approvals, reviews, attendance, analytics, reports, announcements). Admins manage the platform.
 >
 > This document describes the current state of the `mouly` branch: the architecture, what has been built, and what is still left.
 
@@ -18,7 +18,7 @@
 | Validation | zod schemas at the storage boundary (`src/lib/schemas.ts`) |
 | Backend | Supabase: Auth, Postgres (RLS), Storage, Realtime, Edge Functions (**opt-in**, SDK loaded lazily) |
 | Export | CSV (hand-rolled) and PDF (jsPDF + autotable, lazily loaded) |
-| Tests / CI | Vitest (81 tests, incl. 21 database security tests on PGlite); GitHub Actions runs check, test and build |
+| Tests / CI | Vitest (159 tests, incl. 21 database security tests on PGlite); GitHub Actions runs check, test and build |
 
 ---
 
@@ -109,6 +109,40 @@ Vitest, branding, accessibility pass on Dialog and Tabs, CI, loading/empty/error
 - The 3D scene has its own dark-mode tuning (brighter colours, additive glow, a soft backlight behind the sphere).
 
 ---
+
+### Stage F — Insight, board and matching (done)
+- **Team risk score** (`utils/risk.ts`): an explainable 0–100 score per team from six factors (overdue milestones, overdue tasks, attendance, idle members, reporting gaps, schedule slip). Shown as badges on the faculty dashboard, which now ranks teams riskiest first, and as factor cards on Student Analytics.
+- **Analytics charts** (`components/charts/`, hand-built SVG, no chart library): burndown with crosshair tooltip, task status by team, workload by member, and a 12-week activity heatmap, all scoped by a team filter. Tasks now record `createdAt`/`completedAt`, and milestones `completedAt`, to feed them.
+- **Drag-and-drop Kanban** (`components/project/KanbanBoard.svelte`): drag between columns and reorder within one (`db.moveTask`, persisted `order`). The per-card status menu remains for keyboard, screen-reader and touch users; moves are announced in a live region.
+- **Command palette** (Ctrl+K / ⌘K): fuzzy search over pages, projects, tasks, people and actions, with recents. Deep links: `?tab=&task=` on the project workspace, `?q=` on Team Finder, `?project=` on faculty Milestones.
+- **Smarter teammate matching** (`utils/skillGraph.ts`, `utils/compatibility.ts`): a skill graph groups skills into families, so related skills count as half a match. The score rewards common ground, skill areas a teammate adds, and (when matching for a led project) coverage of the team's missing skills. The breakdown dialog explains every point. The workspace invite suggestions and Project Ideas scores use the same engine. This is a local, explainable model; it does not call an LLM.
+
+### Stage G — Forge surfaces and motion (done)
+A visual language built on the product's name: surfaces go from **blueprint** (dashed, drafting marks) to **heat** (an ember arc) to **quenched** (solid, calm). It lives in `src/routes/forge.css` and `src/lib/actions/forge.ts`, uses no new dependencies, and every effect has a reduced-motion fallback.
+- **Cards** (`Card`): quench entrance (arrives glowing, cools as it settles, sequenced page-wide by `use:sequence`); on hover an ember arc runs the edge once, drafting marks open at the corners and the header gauge extends. Variants `blueprint` and `ember`. Live-data refreshes do not replay entrances.
+- **Stat tiles** (`StatCard`): ingots with a hot corner, ghost icon, anneal sheen and an odometer figure (`Odometer`).
+- **Task board**: tickets with a stub, perforation and punched notches, priority heat stripe (overdue high priority breathes), tilted drag ghost, clank on landing and a spark burst (larger and green into Completed); lanes run cold → quenched.
+- **Team Finder**: dossier cards with a gauge dial (`MatchGauge`) that flip in 3D to the top match evidence (`DossierCard`); the hidden face is `inert` and focus follows the flip.
+- **Transitions**: page changes slide by direction of travel with a spark scan; tabs have a molten indicator that stretches between tabs and panels slide in from that side; dialogs open out of a blur with an ember arc; solid buttons "ignite" (pointer heat, spring press, release pulse).
+- **Landing page**: headline words rise white-hot and cool; the three steps are a scroll-linked stacking deck (blueprint → heat → forged, with a spinning approval stamp); stats roll on odometers; capabilities draw as blueprints and forge solid; ember cursor (desktop), magnetic CTAs and a scroll heat rail.
+
+### Stage H — Profiles for every role (done)
+- **One profile page** at `/dashboard/profile` for students, faculty and admins (the old `/dashboard/student/profile` redirects), linked from each role's nav and the sidebar's user block.
+  - Everyone: picture, bio, pronouns, GitHub/LinkedIn/portfolio links.
+  - Students: department, year, open-to-projects, skills, interests, past projects.
+  - Faculty: title, office hours and room, areas of expertise, research interests, accepting-mentees switch and an optional mentee limit (with current load).
+  - Admins: title.
+  - A profile-strength checklist per role. Name, email and role stay read-only (administrator only).
+- **Profile pictures** (`AvatarPicker`): ten preset cartoon characters bundled in `static/avatars/` (DiceBear "Adventurer", CC BY 4.0, see `CREDITS.md`), an uploaded photo positioned and zoomed in a round frame (drag, scroll, slider, arrow keys) then cropped to 256×256 WebP in the browser (a few KB), or initials only.
+- **`db.updateOwnProfile`** accepts only the fields a role may edit and validates them (department list, year, lengths, https links, mentee limit 1–20, avatar must be a preset, a small PNG/JPEG/WebP data URL, or a DiceBear URL). Cloud mode is covered by the existing `users` policy (own row only; role and email guarded).
+- **Live avatars** (`stores/people.svelte.ts`, `Avatar userId=`): a new picture shows everywhere at once, including records that stored an older copy (project members, posts, ideas, comments).
+- **Mentor choice** shows each mentor's title, load and office hours; mentors who are full or not taking mentees are disabled, and `createProject` refuses them.
+- Fixed: the demo seed arrays could be mutated in memory by the first save (`getStorage` now hands out copies).
+
+### Stage I — Renamed to Project-Sync (done)
+- Every user-facing name is now **Project-Sync**: page titles, wordmark, link-preview tags, manifest, PDF footers, notification emails, backup file names and messages.
+- **New mark** (`BrandLogo.svelte`, `src/lib/assets/favicon.svg`, `static/icon.svg`): the chamfered tile now holds two arrows chasing round a project node. The favicon follows the OS light/dark setting; the inline logo follows the app theme, and its arrows turn half a revolution on hover. PNG app icons (`apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, maskable) and a new `og-image.png` were generated from it.
+- Deliberately unchanged, because renaming would break existing installs: the `teamforge_*` browser-storage keys (sessions and local data), the `@teamforge.edu` demo accounts (live logins in Supabase), migration file names, the realtime channel name, and the `TeamForge/` folder that Vercel builds from.
 
 ## 6. Known limits / next steps
 

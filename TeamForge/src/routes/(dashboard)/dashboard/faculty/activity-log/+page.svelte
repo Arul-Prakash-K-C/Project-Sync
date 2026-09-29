@@ -48,7 +48,7 @@
 </script>
 
 <svelte:head>
-  <title>Activity Log — TeamForge</title>
+  <title>Activity Log — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

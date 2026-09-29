@@ -1,4 +1,4 @@
-# TeamForge
+# Project-Sync
 
 Team finder and collaboration platform for university capstone projects. Students form teams on an explainable compatibility score and run their project in one workspace. Faculty mentor and approve proposals, set milestones, take meeting attendance and review weekly progress. Administrators manage accounts and departments.
 
@@ -85,7 +85,7 @@ The first person to sign in seeds the department list, which happens only once.
 
 **Email confirmation:** with **Confirm email** on (the Supabase default), a new account shows "check your inbox". The profile is created on the first sign-in after the link is clicked, and the role is validated on the server at that point.
 
-**Email notifications:** deploy the function (`npm run functions:deploy`), set its secrets (`npx supabase secrets set RESEND_API_KEY=… MAIL_FROM="TeamForge <noreply@…>" APP_URL=https://… WEBHOOK_SECRET=…`), then create a Database Webhook on `public.notifications` for `INSERT` events that calls the `notification-email` function and sends the header `x-webhook-secret`. Full instructions are at the top of [`supabase/functions/notification-email/index.ts`](supabase/functions/notification-email/index.ts).
+**Email notifications:** deploy the function (`npm run functions:deploy`), set its secrets (`npx supabase secrets set RESEND_API_KEY=… MAIL_FROM="Project-Sync <noreply@…>" APP_URL=https://… WEBHOOK_SECRET=…`), then create a Database Webhook on `public.notifications` for `INSERT` events that calls the `notification-email` function and sends the header `x-webhook-secret`. Full instructions are at the top of [`supabase/functions/notification-email/index.ts`](supabase/functions/notification-email/index.ts).
 
 ## Project layout
 

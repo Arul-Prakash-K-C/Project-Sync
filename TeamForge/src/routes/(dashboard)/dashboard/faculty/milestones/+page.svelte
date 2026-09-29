@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
   import { newId } from '$lib/utils/id';
   import { db, type Project, type Milestone } from '$lib/services/db';
@@ -28,6 +29,9 @@
   const today = new Date().toISOString().split('T')[0];
 
   onMount(() => {
+    // The command palette links a team here as ?project=<id>.
+    const linked = $page.url.searchParams.get('project');
+    if (linked) selectedMilestoneProjectId = linked;
     loadData();
   });
 
@@ -214,7 +218,7 @@
 </script>
 
 <svelte:head>
-  <title>Milestones — TeamForge</title>
+  <title>Milestones — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

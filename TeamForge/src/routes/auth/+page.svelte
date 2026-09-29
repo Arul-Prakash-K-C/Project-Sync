@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BrandLogo from '$lib/components/BrandLogo.svelte';
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
@@ -198,7 +199,7 @@
         registerDept,
         registerRole === 'student' ? registerYear : undefined
       );
-      toast.success('Registration successful! Welcome to TeamForge.');
+      toast.success('Registration successful! Welcome to Project-Sync.');
       goto(getDashboardRoute(user.role));
     } catch (err: any) {
       if (err instanceof PendingConfirmationError || err instanceof PendingApprovalError) {
@@ -225,18 +226,14 @@
 </script>
 
 <svelte:head>
-  <title>Sign in — TeamForge</title>
+  <title>Sign in — Project-Sync</title>
 </svelte:head>
 
 <div class="min-h-screen grid lg:grid-cols-[1.05fr_1fr]">
   <!-- Left rail -->
   <aside class="hidden lg:flex relative flex-col justify-between border-r border-border p-12 xl:p-14 overflow-hidden">
-    <a href="/" class="relative z-10 flex items-center gap-2.5 w-fit rounded-sm">
-      <span
-        class="chamfer w-8 h-8 bg-accent flex items-center justify-center text-accent-foreground font-display text-xs"
-        aria-hidden="true">TF</span
-      >
-      <span class="font-display text-base text-foreground">TeamForge</span>
+    <a href="/" class="relative z-10 flex items-center w-fit rounded-sm" aria-label="Project-Sync home">
+      <BrandLogo size="sm" />
     </a>
 
     <ForgeScene class="absolute inset-x-8 top-[42%] -translate-y-1/2 h-[min(60vh,520px)]" controls={false} count={110} />
@@ -254,12 +251,8 @@
   <!-- Form column -->
   <main class="flex items-center justify-center p-6 sm:p-10">
     <div class="w-full max-w-md flex flex-col gap-6">
-      <a href="/" class="flex items-center gap-2.5 self-center lg:hidden rounded-sm">
-        <span
-          class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground font-display text-sm font-bold"
-          aria-hidden="true">TF</span
-        >
-        <span class="font-display text-lg text-foreground tracking-tight">TeamForge</span>
+      <a href="/" class="flex items-center self-center lg:hidden rounded-sm" aria-label="Project-Sync home">
+        <BrandLogo size="md" />
       </a>
 
       <Tabs

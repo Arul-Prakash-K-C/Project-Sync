@@ -81,7 +81,9 @@
     newProjectDept = auth.user?.department && departments.some((d) => d.name === auth.user!.department)
       ? auth.user.department
       : (departments[0]?.name ?? '');
-    newProjectMentorId = mentors.find((m) => m.department === newProjectDept)?.id ?? mentors[0]?.id ?? '';
+    // Default to a mentor in the student's department who is still taking mentees.
+    const open = mentors.filter((m) => db.mentorLoad(m).open);
+    newProjectMentorId = open.find((m) => m.department === newProjectDept)?.id ?? open[0]?.id ?? '';
     triedSubmit = false;
   }
 
@@ -202,7 +204,7 @@
 </script>
 
 <svelte:head>
-  <title>Dashboard — TeamForge</title>
+  <title>Dashboard — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -369,6 +371,7 @@
                     {#each p.members.slice(0, 4) as member (member.userId)}
                       <Avatar
                         src={member.avatar}
+                        userId={member.userId}
                         name={member.name}
                         size="sm"
                         class="ring-2 ring-card"
@@ -526,7 +529,16 @@
               {#each mentorGroups as group (group.label)}
                 <optgroup label={group.label}>
                   {#each group.items as m (m.id)}
-                    <option value={m.id}>{m.name}</option>
+                    {@const load = db.mentorLoad(m)}
+                    <option value={m.id} disabled={!load.open}>
+                      {m.name}{m.designation ? ` · ${m.designation}` : ''}{!load.open
+                        ? m.availability === false
+                          ? ' (not taking mentees)'
+                          : ' (full)'
+                        : load.limit
+                          ? ` (${load.count}/${load.limit})`
+                          : ''}
+                    </option>
                   {/each}
                 </optgroup>
               {/each}
@@ -537,12 +549,17 @@
 
       {#if selectedMentor}
         <div class="flex items-center gap-3 p-3 rounded-md border border-border bg-secondary/40">
-          <Avatar src={selectedMentor.avatar} name={selectedMentor.name} size="sm" />
+          <Avatar src={selectedMentor.avatar} userId={selectedMentor.id} name={selectedMentor.name} size="sm" />
           <div class="min-w-0 leading-tight">
             <p class="text-xs font-bold text-foreground truncate">{selectedMentor.name}</p>
             <p class="text-2xs text-muted-foreground truncate">
-              {selectedMentor.department}{selectedMentor.skills.length ? ` · ${selectedMentor.skills.slice(0, 3).join(', ')}` : ''}
+              {selectedMentor.designation ? `${selectedMentor.designation} · ` : ''}{selectedMentor.department}{selectedMentor.skills.length
+                ? ` · ${selectedMentor.skills.slice(0, 3).join(', ')}`
+                : ''}
             </p>
+            {#if selectedMentor.officeHours}
+              <p class="text-3xs text-muted-foreground truncate mt-0.5">Office hours: {selectedMentor.officeHours}</p>
+            {/if}
           </div>
         </div>
       {/if}

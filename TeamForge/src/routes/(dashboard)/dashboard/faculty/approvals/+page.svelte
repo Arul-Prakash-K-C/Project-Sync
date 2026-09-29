@@ -147,7 +147,7 @@
 </script>
 
 <svelte:head>
-  <title>Project Approvals — TeamForge</title>
+  <title>Project Approvals — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -262,7 +262,7 @@
                     <li
                       class="flex items-center gap-2 bg-muted/40 pl-1.5 pr-3 py-1.5 rounded-md border border-border"
                     >
-                      <Avatar src={member.avatar} name={member.name} size="xs" />
+                      <Avatar src={member.avatar} userId={member.userId} name={member.name} size="xs" />
                       <span class="text-2xs font-bold text-foreground">
                         {member.name}
                         <span class="font-normal text-muted-foreground">· {memberRoleLabel(p, member)}</span>

@@ -1,14 +1,19 @@
 <script lang="ts">
+  import { people } from '$lib/stores/people.svelte';
+
   let {
     src,
     name,
+    /** When given, shows this user's current avatar, whatever `src` was copied when a record was made. */
+    userId,
     size = 'md',
     class: className = '',
     ...rest
   }: {
     src?: string;
     name: string;
-    size?: 'xs' | 'sm' | 'md' | 'lg';
+    userId?: string;
+    size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
     class?: string;
     [key: string]: any;
   } = $props();
@@ -17,8 +22,11 @@
     xs: 'w-6 h-6 text-3xs',
     sm: 'w-8 h-8 text-2xs',
     md: 'w-10 h-10 text-xs',
-    lg: 'w-14 h-14 text-sm'
+    lg: 'w-14 h-14 text-sm',
+    xl: 'w-24 h-24 text-xl'
   };
+
+  const resolved = $derived(userId ? people.avatarOf(userId, src ?? '') : (src ?? ''));
 
   // Initials stand in until the remote avatar loads, and stay if it never does.
   const initials = $derived(
@@ -31,6 +39,11 @@
   );
 
   let failed = $state(false);
+  // A new picture gets a fresh chance to load.
+  $effect(() => {
+    resolved;
+    failed = false;
+  });
 </script>
 
 <span
@@ -38,9 +51,9 @@
     bg-secondary text-muted-foreground font-bold border border-border {sizes[size]} {className}"
   {...rest}
 >
-  {#if src && !failed}
+  {#if resolved && !failed}
     <img
-      {src}
+      src={resolved}
       alt={name}
       loading="lazy"
       onerror={() => (failed = true)}

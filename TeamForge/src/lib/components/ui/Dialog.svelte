@@ -1,6 +1,17 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { fade, scale } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
+
+  /** Opens out of a blur, rising and settling: the panel comes into focus. */
+  function forgeIn(_node: Element, { duration = 380 } = {}) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return { duration: 0 };
+    return {
+      duration,
+      css: (t: number, u: number) =>
+        `opacity: ${Math.min(1, t * 1.6)}; transform: translateY(${u * 14}px) scale(${0.955 + 0.045 * t}); filter: blur(${u * 6}px);`
+    };
+  }
   import { X } from 'lucide-svelte';
 
   let {
@@ -93,13 +104,13 @@
   <div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
     <!-- Overlay -->
     <div
-      transition:fade={{ duration: 120 }}
+      transition:fade={{ duration: 200 }}
       onclick={close}
       onkeydown={(e) => e.key === 'Enter' && close()}
       role="button"
       tabindex="-1"
       aria-label="Close dialog"
-      class="fixed inset-0 bg-black/55 cursor-pointer"
+      class="fixed inset-0 bg-black/50 backdrop-blur-[2px] cursor-pointer"
     ></div>
 
     <!-- Panel. On small screens it docks to the bottom as a sheet, which keeps
@@ -111,8 +122,9 @@
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
       tabindex="-1"
-      transition:scale={{ duration: 140, start: 0.97 }}
-      class="relative w-full {sizes[size]} border border-border rounded-t-lg sm:rounded-lg shadow-e3
+      in:forgeIn
+      out:scale={{ duration: 140, start: 0.97, easing: cubicOut }}
+      class="heat-ring relative w-full {sizes[size]} border border-border rounded-t-lg sm:rounded-lg shadow-e3
         bg-card text-card-foreground z-10 flex flex-col max-h-[92vh] sm:max-h-[85vh]
         focus:outline-none {className}"
     >

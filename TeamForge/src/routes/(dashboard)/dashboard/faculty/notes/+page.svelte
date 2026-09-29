@@ -68,7 +68,7 @@
 </script>
 
 <svelte:head>
-  <title>Private Notes — TeamForge</title>
+  <title>Private Notes — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

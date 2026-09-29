@@ -190,7 +190,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `teamforge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `project-sync-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Data exported');
@@ -259,7 +259,7 @@
 </script>
 
 <svelte:head>
-  <title>Administration — TeamForge</title>
+  <title>Administration — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -506,7 +506,7 @@
                 <tr>
                   <th scope="row" class="p-4 font-normal">
                     <span class="flex items-center gap-3">
-                      <Avatar src={u.avatar} name={u.name} size="sm" />
+                      <Avatar src={u.avatar} userId={u.id} name={u.name} size="sm" />
                       <span class="flex flex-col min-w-0 leading-tight">
                         <span class="text-sm font-bold text-foreground truncate">{u.name}</span>
                         <span class="text-2xs text-muted-foreground truncate">{u.email}</span>
@@ -551,7 +551,7 @@
           {#each filteredUsers as u (u.id)}
             <li class="p-4">
               <div class="flex items-start gap-3">
-                <Avatar src={u.avatar} name={u.name} size="sm" />
+                <Avatar src={u.avatar} userId={u.id} name={u.name} size="sm" />
                 <div class="min-w-0 flex-1 leading-tight">
                   <p class="text-sm font-bold text-foreground truncate">{u.name}</p>
                   <p class="text-2xs text-muted-foreground truncate">{u.email}</p>

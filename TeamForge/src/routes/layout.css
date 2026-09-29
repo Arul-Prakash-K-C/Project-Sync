@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
+@import "./forge.css";
 
 /* Theme is toggled by a `.dark` class on <html>, not by the OS preference
    alone, so `dark:` utilities have to follow that class. */
@@ -504,36 +505,6 @@ summary:focus-visible,
     color-mix(in srgb, var(--accent) 7%, transparent),
     transparent 60%
   );
-}
-
-/* Page transitions (View Transitions API, wired in the root layout). Chrome
-   stays put; only the page content cross-fades with a small rise. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 0.28s;
-  animation-timing-function: var(--ease-out);
-}
-::view-transition-old(root) {
-  animation-name: vt-out;
-}
-::view-transition-new(root) {
-  animation-name: vt-in;
-}
-::view-transition-group(app-sidebar),
-::view-transition-group(app-header) {
-  animation: none;
-}
-@keyframes vt-out {
-  to {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-}
-@keyframes vt-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
 }
 
 /* Entrance used by the dashboard content column when view transitions are unavailable. */

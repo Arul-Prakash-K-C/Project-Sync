@@ -21,7 +21,16 @@ export const UserSchema = z.object({
   skills: z.array(z.string()),
   interests: z.array(z.string()),
   availability: z.boolean(),
-  previousProjects: z.array(z.string()).optional()
+  previousProjects: z.array(z.string()).optional(),
+  // Optional profile details; older accounts don't have them.
+  pronouns: z.string().optional(),
+  designation: z.string().optional(),
+  officeHours: z.string().optional(),
+  officeLocation: z.string().optional(),
+  maxMentees: z.number().int().optional(),
+  links: z
+    .object({ github: z.string().optional(), linkedin: z.string().optional(), portfolio: z.string().optional() })
+    .optional()
 });
 
 const ProjectMemberSchema = z.object({
@@ -37,7 +46,8 @@ const MilestoneSchema = z.object({
   deadline: z.string(),
   completed: z.boolean(),
   locked: z.boolean().optional(),
-  extendedDeadline: z.string().optional()
+  extendedDeadline: z.string().optional(),
+  completedAt: z.string().optional()
 });
 
 export const ProjectSchema = z.object({
@@ -83,6 +93,7 @@ const TaskAttachmentSchema = z.object({
 
 const TaskCommentSchema = z.object({
   id: z.string(),
+  userId: z.string().optional(),
   userName: z.string(),
   userAvatar: z.string(),
   text: z.string(),
@@ -99,7 +110,11 @@ export const TaskSchema = z.object({
   deadline: z.string(),
   assignees: z.array(z.string()),
   comments: z.array(TaskCommentSchema),
-  attachments: z.array(TaskAttachmentSchema)
+  attachments: z.array(TaskAttachmentSchema),
+  // Optional so tasks created before board history and ordering existed still load.
+  createdAt: z.string().optional(),
+  completedAt: z.string().optional(),
+  order: z.number().optional()
 });
 
 const ReplySchema = z.object({
