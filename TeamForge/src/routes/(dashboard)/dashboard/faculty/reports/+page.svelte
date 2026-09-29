@@ -173,7 +173,7 @@
 </script>
 
 <svelte:head>
-  <title>Reports Hub — TeamForge</title>
+  <title>Reports Hub — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

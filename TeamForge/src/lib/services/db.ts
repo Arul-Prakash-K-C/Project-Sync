@@ -18,6 +18,7 @@ import {
   StaffRequestSchema
 } from '$lib/schemas';
 import { newId } from '$lib/utils/id';
+import { validateAvatar } from '$lib/utils/avatars';
 
 export interface User {
   id: string;
@@ -36,8 +37,23 @@ export interface User {
   bio?: string;
   skills: string[];
   interests: string[];
+  /** Students: open to projects. Faculty: accepting new mentees. */
   availability: boolean;
   previousProjects?: string[];
+  pronouns?: string;
+  /** Job title, e.g. "Associate Professor" (faculty, admin). */
+  designation?: string;
+  officeHours?: string;
+  officeLocation?: string;
+  /** Faculty: most teams they will mentor at once (pending + active). */
+  maxMentees?: number;
+  links?: ProfileLinks;
+}
+
+export interface ProfileLinks {
+  github?: string;
+  linkedin?: string;
+  portfolio?: string;
 }
 
 export interface ProjectMember {
@@ -54,6 +70,8 @@ export interface Milestone {
   completed: boolean;
   locked?: boolean;
   extendedDeadline?: string;
+  /** When it was last ticked off; used to tell on-time from late completions. */
+  completedAt?: string;
 }
 
 export interface WeeklyReport {
@@ -182,6 +200,33 @@ export interface StaffRequest {
   reason?: string;
 }
 
+/** Profile fields a person may edit about themselves, by role. */
+export const PROFILE_FIELDS = {
+  student: ['avatar', 'bio', 'pronouns', 'links', 'department', 'academicYear', 'availability', 'skills', 'interests', 'previousProjects'],
+  faculty: ['avatar', 'bio', 'pronouns', 'links', 'designation', 'officeHours', 'officeLocation', 'availability', 'maxMentees', 'skills', 'interests'],
+  admin: ['avatar', 'bio', 'pronouns', 'links', 'designation']
+} as const satisfies Record<User['role'], readonly (keyof User)[]>;
+
+export type ProfilePatch = Partial<
+  Pick<
+    User,
+    | 'avatar'
+    | 'bio'
+    | 'pronouns'
+    | 'links'
+    | 'department'
+    | 'academicYear'
+    | 'availability'
+    | 'skills'
+    | 'interests'
+    | 'previousProjects'
+    | 'designation'
+    | 'officeHours'
+    | 'officeLocation'
+    | 'maxMentees'
+  >
+>;
+
 export const TEAM_SIZE_MIN = 2;
 export const TEAM_SIZE_MAX = 8;
 
@@ -217,6 +262,8 @@ export interface TaskAttachment {
 
 export interface TaskComment {
   id: string;
+  /** Missing on comments written before it was recorded. */
+  userId?: string;
   userName: string;
   userAvatar: string;
   text: string;
@@ -234,6 +281,19 @@ export interface Task {
   assignees: string[]; // User IDs
   comments: TaskComment[];
   attachments: TaskAttachment[];
+  /** Missing on tasks created before board history was recorded. */
+  createdAt?: string;
+  /** Set when the task reaches Completed, cleared if it moves back. Drives the burndown. */
+  completedAt?: string;
+  /** Position within its column on the board; lower comes first. */
+  order?: number;
+}
+
+export type TaskColumn = Task['column'];
+
+/** Board order: explicit `order` first, then tasks never placed by hand, in creation order. */
+export function byBoardOrder(a: Task, b: Task): number {
+  return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER);
 }
 
 export interface Reply {
@@ -492,7 +552,9 @@ const defaultTasks: Task[] = [
     comments: [
       { id: 'c1', userName: 'Sarah Chen', userAvatar: 'https://api.dicebear.com/7.x/adventurer/svg?seed=Sarah', text: 'I can help with the Firestore user mapping if needed.', createdAt: '2026-07-12T11:00:00.000Z' }
     ],
-    attachments: []
+    attachments: [],
+    createdAt: '2026-07-06T09:00:00.000Z',
+    order: 0
   },
   {
     id: 'task_2',
@@ -504,7 +566,9 @@ const defaultTasks: Task[] = [
     deadline: '2026-07-25',
     assignees: ['student_alex'],
     comments: [],
-    attachments: []
+    attachments: [],
+    createdAt: '2026-07-08T09:00:00.000Z',
+    order: 0
   },
   {
     id: 'task_3',
@@ -516,7 +580,10 @@ const defaultTasks: Task[] = [
     deadline: '2026-07-14',
     assignees: ['student_alex'],
     comments: [],
-    attachments: []
+    attachments: [],
+    createdAt: '2026-07-03T09:00:00.000Z',
+    completedAt: '2026-07-13T16:00:00.000Z',
+    order: 0
   },
   {
     id: 'task_4',
@@ -528,7 +595,82 @@ const defaultTasks: Task[] = [
     deadline: '2026-08-05',
     assignees: ['student_sarah'],
     comments: [],
-    attachments: []
+    attachments: [],
+    createdAt: '2026-07-10T09:00:00.000Z',
+    order: 0
+  },
+  {
+    id: 'task_5',
+    projectId: 'project_studyhub',
+    title: 'Write the system architecture document',
+    description: 'Describe the sync model, data ownership and moderation flow for the faculty architecture review.',
+    column: 'completed',
+    priority: 'high',
+    deadline: '2026-07-30',
+    assignees: ['student_sarah'],
+    comments: [],
+    attachments: [],
+    createdAt: '2026-07-03T10:00:00.000Z',
+    completedAt: '2026-07-29T12:00:00.000Z',
+    order: 1
+  },
+  {
+    id: 'task_6',
+    projectId: 'project_studyhub',
+    title: 'Build clickable wireframe prototype',
+    description: 'Figma prototype of the study-guide channels, exam archive and group slot booking.',
+    column: 'completed',
+    priority: 'medium',
+    deadline: '2026-08-18',
+    assignees: ['student_alex'],
+    comments: [],
+    attachments: [],
+    createdAt: '2026-07-20T10:00:00.000Z',
+    completedAt: '2026-08-17T15:00:00.000Z',
+    order: 2
+  },
+  {
+    id: 'task_7',
+    projectId: 'project_studyhub',
+    title: 'Usability test the wireframes with five students',
+    description: 'Run short moderated sessions and log the top issues for the next design pass.',
+    column: 'completed',
+    priority: 'low',
+    deadline: '2026-08-28',
+    assignees: ['student_sarah'],
+    comments: [],
+    attachments: [],
+    createdAt: '2026-08-10T10:00:00.000Z',
+    completedAt: '2026-09-02T11:00:00.000Z',
+    order: 3
+  },
+  {
+    id: 'task_8',
+    projectId: 'project_studyhub',
+    title: 'Realtime sync for study channels',
+    description: 'Subscribe channel pages to live updates and resolve concurrent edits to shared guides.',
+    column: 'inprogress',
+    priority: 'high',
+    deadline: '2026-10-05',
+    assignees: ['student_sarah'],
+    comments: [],
+    attachments: [],
+    createdAt: '2026-08-25T10:00:00.000Z',
+    order: 1
+  },
+  {
+    id: 'task_9',
+    projectId: 'project_studyhub',
+    title: 'Deployment pipeline and staging environment',
+    description: 'CI build, preview deployments per pull request, and a staging database for the evaluation demo.',
+    column: 'todo',
+    priority: 'medium',
+    deadline: '2026-10-10',
+    assignees: [],
+    comments: [],
+    attachments: [],
+    createdAt: '2026-09-05T10:00:00.000Z',
+    order: 1
   }
 ];
 
@@ -699,6 +841,9 @@ class DatabaseService {
   }
 
   private getStorage<T>(key: string, defaultValue: T, schema?: ZodType<T>): T {
+    // Hand out a copy of the demo defaults: callers mutate what they get back
+    // (e.g. `users[idx] = …`) before saving, which must never alter the seed.
+    defaultValue = JSON.parse(JSON.stringify(defaultValue)) as T;
     if (typeof window === 'undefined') return defaultValue;
     if (!this.useDemoDefaults && Array.isArray(defaultValue)) {
       defaultValue = (key === 'departments' ? defaultValue : []) as T;
@@ -709,13 +854,13 @@ class DatabaseService {
     try {
       parsed = JSON.parse(item);
     } catch {
-      console.warn(`[TeamForge] Corrupted JSON in localStorage for "${key}", falling back to defaults.`);
+      console.warn(`[Project-Sync] Corrupted JSON in localStorage for "${key}", falling back to defaults.`);
       return defaultValue;
     }
     if (!schema) return parsed as T;
     const result = schema.safeParse(parsed);
     if (!result.success) {
-      console.warn(`[TeamForge] Stored data for "${key}" failed validation, falling back to defaults.`, result.error);
+      console.warn(`[Project-Sync] Stored data for "${key}" failed validation, falling back to defaults.`, result.error);
       return defaultValue;
     }
     return result.data;
@@ -825,6 +970,117 @@ class DatabaseService {
     throw new Error('User not found');
   }
 
+  /**
+   * A person editing their own profile. Only the fields their role may change
+   * are accepted; identity (name, email, role) and anything else in `patch`
+   * is ignored. Values are trimmed and validated, and the saved user returned.
+   */
+  updateOwnProfile(userId: string, patch: ProfilePatch): User {
+    const user = this.getUser(userId);
+    if (!user) throw new Error('User not found');
+    const allowed: readonly string[] = PROFILE_FIELDS[user.role];
+    const clean: Partial<User> = {};
+    const text = (v: unknown, max: number, label: string) => {
+      const t = String(v ?? '').trim();
+      if (t.length > max) throw new Error(`${label} can be at most ${max} characters.`);
+      return t || undefined;
+    };
+    const list = (v: unknown, max: number, label: string) => {
+      const items = (Array.isArray(v) ? v : [])
+        .map((x) => String(x).trim())
+        .filter((x, i, all) => x && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+      if (items.length > max) throw new Error(`Add at most ${max} ${label}.`);
+      if (items.some((x) => x.length > 60)) throw new Error(`Each of your ${label} can be at most 60 characters.`);
+      return items;
+    };
+
+    for (const key of Object.keys(patch) as (keyof ProfilePatch)[]) {
+      if (!allowed.includes(key)) continue;
+      const v = patch[key];
+      switch (key) {
+        case 'avatar': {
+          const avatar = String(v ?? '');
+          const problem = validateAvatar(avatar);
+          if (problem) throw new Error(problem);
+          clean.avatar = avatar;
+          break;
+        }
+        case 'bio':
+          clean.bio = text(v, 600, 'Your bio') ?? '';
+          break;
+        case 'pronouns':
+          clean.pronouns = text(v, 30, 'Pronouns');
+          break;
+        case 'designation':
+          clean.designation = text(v, 80, 'Title');
+          break;
+        case 'officeHours':
+          clean.officeHours = text(v, 120, 'Office hours');
+          break;
+        case 'officeLocation':
+          clean.officeLocation = text(v, 80, 'Office location');
+          break;
+        case 'department': {
+          const dept = String(v ?? '');
+          if (!this.getDepartments().some((d) => d.name === dept)) throw new Error('Choose a department from the list.');
+          clean.department = dept;
+          break;
+        }
+        case 'academicYear':
+          if (!['Year 1', 'Year 2', 'Year 3', 'Year 4'].includes(String(v))) throw new Error('Choose an academic year.');
+          clean.academicYear = String(v);
+          break;
+        case 'availability':
+          clean.availability = Boolean(v);
+          break;
+        case 'skills':
+          clean.skills = list(v, 25, 'skills');
+          break;
+        case 'interests':
+          clean.interests = list(v, 15, 'interests');
+          break;
+        case 'previousProjects':
+          clean.previousProjects = list(v, 10, 'past projects');
+          break;
+        case 'maxMentees': {
+          const n = Number(v);
+          if (!Number.isInteger(n) || n < 1 || n > 20) throw new Error('Mentee limit must be a whole number from 1 to 20.');
+          clean.maxMentees = n;
+          break;
+        }
+        case 'links': {
+          const links = (v ?? {}) as ProfileLinks;
+          const out: ProfileLinks = {};
+          for (const k of ['github', 'linkedin', 'portfolio'] as const) {
+            const url = String(links[k] ?? '').trim();
+            if (!url) continue;
+            if (!/^https:\/\/[^\s/$.?#].[^\s]*$/i.test(url) || url.length > 200) {
+              throw new Error(`Your ${k === 'github' ? 'GitHub' : k === 'linkedin' ? 'LinkedIn' : 'portfolio'} link must be a full https:// address.`);
+            }
+            out[k] = url;
+          }
+          clean.links = out;
+          break;
+        }
+      }
+    }
+    return this.updateUserProfile(userId, clean);
+  }
+
+  /**
+   * How many teams a faculty member mentors right now (pending proposals and
+   * active projects) against their limit. `open` is false when they have
+   * stopped accepting mentees or are at their limit.
+   */
+  mentorLoad(faculty: Pick<User, 'id' | 'availability' | 'maxMentees'>) {
+    const count = this.getProjects().filter(
+      (p) => p.mentorId === faculty.id && (p.status === 'pending' || p.status === 'active')
+    ).length;
+    const limit = faculty.maxMentees ?? null;
+    const open = faculty.availability !== false && (limit === null || count < limit);
+    return { count, limit, open };
+  }
+
   // Projects CRUD
   /**
    * The projects a faculty member supervises: the ones whose students chose
@@ -870,6 +1126,9 @@ class DatabaseService {
     }
     const mentor = this.getUser(input.mentorId);
     if (!mentor || mentor.role !== 'faculty') throw new Error('Choose a mentor from the registered faculty.');
+    if (!this.mentorLoad(mentor).open) {
+      throw new Error(`${mentor.name} isn't taking new mentees right now. Choose another mentor.`);
+    }
 
     const projects = this.getProjects();
     const newProj: Project = {
@@ -1059,7 +1318,10 @@ class DatabaseService {
       deadline,
       assignees,
       comments: [],
-      attachments: []
+      attachments: [],
+      createdAt: new Date().toISOString(),
+      // New tasks join the bottom of To do.
+      order: tasks.filter((t) => t.projectId === projectId && t.column === 'todo').length
     };
     tasks.push(newTask);
     this.saveTasks(tasks);
@@ -1087,11 +1349,37 @@ class DatabaseService {
     const tasks = this.getTasks();
     const idx = tasks.findIndex(t => t.id === id);
     if (idx !== -1) {
-      tasks[idx] = { ...tasks[idx], ...data } as Task;
+      tasks[idx] = withCompletionStamp(tasks[idx], { ...tasks[idx], ...data } as Task);
       this.saveTasks(tasks);
       return tasks[idx];
     }
     throw new Error('Task not found');
+  }
+
+  /**
+   * Moves a task to `column` at `index` (its position among the other tasks in
+   * that column) and renumbers the column so the order survives a reload. Only
+   * tasks whose position actually changed are rewritten, so a drag in cloud
+   * mode sends the fewest row updates.
+   */
+  moveTask(id: string, column: TaskColumn, index: number): Task {
+    const tasks = this.getTasks();
+    const moving = tasks.find((t) => t.id === id);
+    if (!moving) throw new Error('Task not found');
+
+    const lane = tasks
+      .filter((t) => t.projectId === moving.projectId && t.column === column && t.id !== id)
+      .sort(byBoardOrder);
+    const at = Math.max(0, Math.min(index, lane.length));
+    lane.splice(at, 0, moving);
+
+    const updates = new Map<string, Task>();
+    lane.forEach((t, order) => {
+      const next = t.id === id ? withCompletionStamp(t, { ...t, column, order }) : { ...t, order };
+      if (next.order !== t.order || next.column !== t.column) updates.set(t.id, next);
+    });
+    if (updates.size > 0) this.saveTasks(tasks.map((t) => updates.get(t.id) ?? t));
+    return updates.get(id) ?? moving;
   }
 
   addComment(taskId: string, user: User, text: string): TaskComment {
@@ -1100,6 +1388,7 @@ class DatabaseService {
     if (idx !== -1) {
       const comment: TaskComment = {
         id: newId('comment'),
+        userId: user.id,
         userName: user.name,
         userAvatar: user.avatar,
         text,
@@ -1556,5 +1845,17 @@ const NON_DATA_KEYS = new Set([
   'teamforge_rate_limit_records',
   'teamforge_sidebar'
 ]);
+
+/** Stamps `completedAt` when a task reaches Completed and clears it if the task moves back. */
+function withCompletionStamp(prev: Task, next: Task): Task {
+  if (next.column === 'completed' && prev.column !== 'completed') {
+    return { ...next, completedAt: new Date().toISOString() };
+  }
+  if (next.column !== 'completed' && next.completedAt) {
+    const { completedAt: _completedAt, ...rest } = next;
+    return rest;
+  }
+  return next;
+}
 
 export const db = new DatabaseService();

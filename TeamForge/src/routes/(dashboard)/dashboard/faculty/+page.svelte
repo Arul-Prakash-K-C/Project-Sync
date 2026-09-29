@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type Project, type WeeklyReport } from '$lib/services/db';
-  import { BookOpen, Clock, AlertTriangle, Users, ArrowRight, Inbox } from 'lucide-svelte';
+  import { BookOpen, Clock, AlertTriangle, ArrowRight, Inbox, ShieldAlert } from 'lucide-svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -10,9 +10,14 @@
   import StatCard from '$lib/components/ui/StatCard.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
+  import RiskBadge from '$lib/components/RiskBadge.svelte';
+  import { calculateTeamRisk, type TeamRisk } from '$lib/utils/risk';
+  import type { Task, Meeting } from '$lib/services/db';
 
   let projects = $state<Project[]>([]);
   let weeklyReports = $state<WeeklyReport[]>([]);
+  let tasks = $state<Task[]>([]);
+  let meetings = $state<Meeting[]>([]);
   let loaded = $state(false);
 
   onMount(() => {
@@ -24,6 +29,8 @@
     if (auth.user) {
       projects = db.getSupervisedProjects(auth.user!);
       weeklyReports = db.getWeeklyReports().filter((r) => projects.some((p) => p.id === r.projectId));
+      tasks = db.getTasks();
+      meetings = db.getMeetings();
     }
   }
 
@@ -43,10 +50,28 @@
     }, 0)
   );
 
-  /** Teams with something wrong are listed first — a supervision dashboard is a
-      queue of exceptions, not an alphabetical roster. */
+  const risks = $derived(
+    new Map<string, TeamRisk>(
+      activeProjects.map((p) => [
+        p.id,
+        calculateTeamRisk({
+          project: p,
+          tasks: tasks.filter((t) => t.projectId === p.id),
+          meetings: meetings.filter((m) => m.projectId === p.id),
+          reports: weeklyReports.filter((r) => r.projectId === p.id),
+          today
+        })
+      ])
+    )
+  );
+  const atRisk = $derived([...risks.values()].filter((r) => r.level !== 'low').length);
+
+  /** Riskiest teams are listed first — a supervision dashboard is a queue of
+      exceptions, not an alphabetical roster. */
   const rankedProjects = $derived(
-    [...activeProjects].sort((a, b) => overdueCount(b) - overdueCount(a) || calculateProgress(a) - calculateProgress(b))
+    [...activeProjects].sort(
+      (a, b) => risks.get(b.id)!.score - risks.get(a.id)!.score || calculateProgress(a) - calculateProgress(b)
+    )
   );
 
   function overdueCount(p: Project): number {
@@ -63,7 +88,7 @@
 </script>
 
 <svelte:head>
-  <title>Faculty Dashboard — TeamForge</title>
+  <title>Faculty Dashboard — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -133,17 +158,22 @@
         hint={overdueMilestones > 0 ? 'Past deadline, not completed' : 'Every team is on schedule'}
       />
       <StatCard
-        label="Students supervised"
-        value={totalStudents}
-        icon={Users}
-        tone="info"
-        hint="Across active teams"
+        label="Teams at risk"
+        value={atRisk}
+        icon={ShieldAlert}
+        tone={atRisk > 0 ? 'warning' : 'success'}
+        hint={atRisk > 0 ? `Medium or high risk · ${totalStudents} students supervised` : `All clear · ${totalStudents} students supervised`}
       />
     </section>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
       <div class="lg:col-span-2">
-        <Card title="Team progress" description="Teams needing attention are listed first.">
+        <Card title="Team progress" description="Riskiest teams first. Open Student Analytics for the full breakdown.">
+          {#snippet actions()}
+            <a href="/dashboard/faculty/analytics" class="text-2xs font-bold text-accent hover:underline rounded-sm">
+              Analytics
+            </a>
+          {/snippet}
           {#if !loaded}
             <div class="flex flex-col gap-4" aria-busy="true">
               {#each { length: 3 } as _, i (i)}
@@ -158,6 +188,8 @@
               {#each rankedProjects as p (p.id)}
                 {@const overdue = overdueCount(p)}
                 {@const progress = calculateProgress(p)}
+                {@const risk = risks.get(p.id)!}
+                {@const topFactor = risk.factors.find((f) => f.points > 0)}
                 <li class="p-3.5 border border-border rounded-md hover:bg-muted/30 transition-colors">
                   <div class="flex justify-between items-start gap-3">
                     <div class="min-w-0">
@@ -166,14 +198,19 @@
                         Lead {p.ownerName} · {p.members.length} member{p.members.length === 1 ? '' : 's'}
                       </p>
                     </div>
-                    {#if overdue > 0}
-                      <Badge variant="danger" dot size="sm" class="shrink-0">
-                        {overdue} overdue
-                      </Badge>
-                    {:else}
-                      <Badge variant="success" dot size="sm" class="shrink-0">On track</Badge>
-                    {/if}
+                    <div class="flex flex-wrap justify-end gap-1.5 shrink-0">
+                      {#if overdue > 0}
+                        <Badge variant="danger" dot size="sm">{overdue} overdue</Badge>
+                      {/if}
+                      <RiskBadge {risk} />
+                    </div>
                   </div>
+                  {#if topFactor}
+                    <p class="text-2xs text-muted-foreground mt-2 leading-snug">
+                      <span class="font-semibold text-foreground">{topFactor.label}:</span>
+                      {topFactor.detail}
+                    </p>
+                  {/if}
 
                   <ProgressBar
                     class="mt-3"

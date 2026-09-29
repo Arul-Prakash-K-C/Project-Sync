@@ -109,7 +109,7 @@ function applyChange(key: CollectionKey, payload: RealtimePostgresChangesPayload
 // ------------------------------------------------------------------ writing
 
 function reportWriteError(key: CollectionKey, error: { code?: string; message: string }) {
-  console.error(`[TeamForge] Could not save "${key}"`, error);
+  console.error(`[Project-Sync] Could not save "${key}"`, error);
   toast.error(
     error.code === '42501' || /row-level security|permission/i.test(error.message)
       ? "That change wasn't saved — your account doesn't have permission for it."
@@ -166,14 +166,14 @@ async function seedIfEmpty() {
   const keys = cloudOptions.seedDemo ? (Object.keys(DEMO_SEED) as CollectionKey[]) : ['departments' as const];
   const payload = Object.fromEntries(keys.map((k) => [k, DEMO_SEED[k] ?? []]));
   const { error } = await sb!.rpc('seed_database', { payload, demo: cloudOptions.seedDemo });
-  if (error) console.info('[TeamForge] Seed skipped:', error.message);
+  if (error) console.info('[Project-Sync] Seed skipped:', error.message);
 }
 
 /** Reads the department list without signing in (the registration form needs it). */
 export async function preloadPublicCollections() {
   sb ??= await getSupabase();
   const { data, error } = await sb.from('departments').select('id, data');
-  if (error) return console.warn('[TeamForge] Could not load departments', error);
+  if (error) return console.warn('[Project-Sync] Could not load departments', error);
   if (data && data.length > 0) db.applyRemote('departments', (data as Row[]).map((r) => r.data));
 }
 
@@ -228,7 +228,7 @@ export async function startSync(who: SyncIdentity): Promise<void> {
   const results = await Promise.allSettled(keys.map((key) => load(key)));
   const failed = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
   if (failed.length > 0) {
-    console.error('[TeamForge] Some collections failed to load', failed.map((f) => f.reason));
+    console.error('[Project-Sync] Some collections failed to load', failed.map((f) => f.reason));
     syncState.status = 'error';
     syncState.error = String(failed[0].reason?.message ?? failed[0].reason);
   } else if (syncState.status === 'connecting') {

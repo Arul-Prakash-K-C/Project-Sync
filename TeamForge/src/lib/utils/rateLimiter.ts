@@ -1,5 +1,5 @@
 /**
- * Rate Limiter and Account Lockout Utility for TeamForge
+ * Rate Limiter and Account Lockout Utility for Project-Sync
  * 
  * Provides client-side defense against brute-force attacks and credential stuffing:
  * - Tracks failed attempts per email identifier

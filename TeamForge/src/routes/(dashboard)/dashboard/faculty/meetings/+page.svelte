@@ -286,7 +286,7 @@
 </script>
 
 <svelte:head>
-  <title>Review Scheduler — TeamForge</title>
+  <title>Review Scheduler — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}
@@ -535,7 +535,7 @@
       {#each attendanceMembers as member (member.userId)}
         <li class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <span class="flex items-center gap-3 min-w-0">
-            <Avatar src={member.avatar} name={member.name} size="sm" />
+            <Avatar src={member.avatar} userId={member.userId} name={member.name} size="sm" />
             <span class="text-sm font-semibold text-foreground truncate">{member.name}</span>
           </span>
           <fieldset class="flex gap-1">

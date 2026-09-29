@@ -7,7 +7,7 @@
 //
 // Secrets (supabase secrets set …):
 //   RESEND_API_KEY   API key from resend.com
-//   MAIL_FROM        e.g. "TeamForge <noreply@your-domain.edu>"
+//   MAIL_FROM        e.g. "Project-Sync <noreply@your-domain.edu>"
 //   APP_URL          public URL of the app, for links in the email
 //   WEBHOOK_SECRET   shared secret the webhook sends in x-webhook-secret
 // SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are provided automatically.
@@ -49,9 +49,9 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       from: Deno.env.get('MAIL_FROM'),
       to: user.email,
-      subject: `TeamForge · ${record.data.title}`,
-      text: `${record.data.description}\n\nOpen TeamForge: ${link}`,
-      html: `<p>${escapeHtml(record.data.description)}</p><p><a href="${escapeHtml(link)}">Open in TeamForge</a></p>`
+      subject: `Project-Sync · ${record.data.title}`,
+      text: `${record.data.description}\n\nOpen Project-Sync: ${link}`,
+      html: `<p>${escapeHtml(record.data.description)}</p><p><a href="${escapeHtml(link)}">Open in Project-Sync</a></p>`
     })
   });
 

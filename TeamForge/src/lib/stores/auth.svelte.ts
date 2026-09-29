@@ -267,7 +267,7 @@ class AuthStore {
         setTimeout(() => void this.handleCloudAuth(event, session), 0);
       });
     } catch (err) {
-      console.error('[TeamForge] Supabase failed to initialise', err);
+      console.error('[Project-Sync] Supabase failed to initialise', err);
       this.loading = false;
     }
   }
@@ -289,7 +289,7 @@ class AuthStore {
     try {
       await this.completeCloudSignIn(session.user, stored);
     } catch (err) {
-      console.error('[TeamForge] Could not restore session', err);
+      console.error('[Project-Sync] Could not restore session', err);
       await this.logout();
     }
     this.loading = false;
@@ -322,7 +322,7 @@ class AuthStore {
         ? await sb.rpc('register_profile', { profile: pendingProfile })
         : cloudOptions.seedDemo
           ? await sb.rpc('claim_demo_profile')
-          : { data: null, error: { code: 'P0002', message: 'No TeamForge profile is linked to this sign-in.' } };
+          : { data: null, error: { code: 'P0002', message: 'No Project-Sync profile is linked to this sign-in.' } };
       // Faculty sign-ups outside the allow-list wait for an administrator.
       if (outcome?.status === 'pending') throw new PendingApprovalError();
       if (outcome?.status === 'rejected') {
@@ -335,12 +335,12 @@ class AuthStore {
       // race just reads the profile the other one created.
       if (error && error.code !== '23505') throw new Error(cloudAuthMessage(error));
       ({ data: account } = await sb.from('accounts').select('user_id').eq('auth_uid', authUser.id).maybeSingle());
-      if (!account) throw new Error('No TeamForge profile is linked to this sign-in.');
+      if (!account) throw new Error('No Project-Sync profile is linked to this sign-in.');
     }
 
     const userId = account.user_id as string;
     const { data: row, error: profileError } = await sb.from('users').select('data').eq('id', userId).maybeSingle();
-    if (profileError || !row) throw new Error('Your TeamForge profile could not be found.');
+    if (profileError || !row) throw new Error('Your Project-Sync profile could not be found.');
     const profile = row.data as User;
 
     await startSync({ uid: authUser.id, userId, role: profile.role });

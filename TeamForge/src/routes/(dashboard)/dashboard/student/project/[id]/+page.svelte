@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { page } from '$app/stores';
   import { auth } from '$lib/stores/auth.svelte';
   import { newId } from '$lib/utils/id';
@@ -44,6 +44,9 @@
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ProgressBar from '$lib/components/ui/ProgressBar.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
+  import KanbanBoard from '$lib/components/project/KanbanBoard.svelte';
+  import { rankCandidatesForNeeds } from '$lib/utils/compatibility';
+  import type { TaskColumn } from '$lib/services/db';
 
   const projectId = $derived($page.params.id);
 
@@ -82,6 +85,7 @@
   );
 
   let activeTab = $state('overview');
+  let tabDirection = $state(1);
 
   let inviteDialogOpen = $state(false);
   let inviteEmail = $state('');
@@ -146,6 +150,31 @@
     }
   });
 
+  /*
+    Deep links from the command palette: `?tab=` opens a workspace section and
+    `?task=` opens that task's details on the board.
+  */
+  let handledLink = '';
+  $effect(() => {
+    const link = `${$page.params.id}${$page.url.search}`;
+    // Each link is acted on once; later data reloads must not reopen a closed dialog.
+    if (link === handledLink) return;
+    handledLink = link;
+    const params = $page.url.searchParams;
+    const tab = params.get('tab');
+    const taskId = params.get('task');
+    untrack(() => {
+      if (tab) activeTab = tab;
+      if (taskId) {
+        const t = db.getTasks().find((x) => x.id === taskId && x.projectId === $page.params.id);
+        if (t) {
+          activeTab = 'kanban';
+          viewTaskDetails(t);
+        }
+      }
+    });
+  });
+
   function loadData() {
     if (projectId) {
       project = db.getProjects().find((p) => p.id === projectId);
@@ -190,7 +219,11 @@
     if (!project) return;
     if (!canManage) return toast.error(MANAGE_ONLY);
     try {
-      const updated = project.milestones.map((m) => (m.id === mId ? { ...m, completed: !m.completed } : m));
+      const updated = project.milestones.map((m) =>
+        m.id === mId
+          ? { ...m, completed: !m.completed, completedAt: m.completed ? undefined : new Date().toISOString() }
+          : m
+      );
       db.updateProject(project.id, { milestones: updated });
       loadData();
       toast.success('Milestone updated');
@@ -241,19 +274,23 @@
 
   /**
    * Classmates worth inviting: available students, not already on or invited
-   * to this team, ranked by how many still-missing skills they bring.
+   * to this team, ranked by the matching engine on how well they cover the
+   * still-missing skills. A related skill (React for a Svelte gap) counts half.
    */
   const inviteSuggestions = $derived.by(() => {
     if (!project || missingSkills.length === 0) return [];
     const taken = new Set([...project.members.map((m) => m.userId), ...project.pendingInvites]);
-    const wanted = missingSkills.map((s) => s.toLowerCase());
-    return db
+    const candidates = db
       .getUsers()
-      .filter((u) => u.role === 'student' && u.availability && !taken.has(u.id))
-      .map((u) => ({ user: u, brings: u.skills.filter((s) => wanted.includes(s.toLowerCase())) }))
-      .filter((c) => c.brings.length > 0)
-      .sort((a, b) => b.brings.length - a.brings.length)
-      .slice(0, 3);
+      .filter((u) => u.role === 'student' && u.availability && !taken.has(u.id));
+    return rankCandidatesForNeeds(missingSkills, candidates)
+      .slice(0, 3)
+      .map((c) => ({
+        user: c.user,
+        brings: c.coverage
+          .filter((x) => x.score > 0)
+          .map((x) => (x.score === 1 ? x.need : `${x.by} (≈ ${x.need})`))
+      }));
   });
 
   function handleInvite(e: SubmitEvent) {
@@ -300,10 +337,10 @@
     }
   }
 
-  function updateTaskColumn(taskId: string, col: Task['column']) {
+  function moveTask(taskId: string, col: TaskColumn, index: number) {
     if (!canManage) return toast.error(MANAGE_ONLY);
     try {
-      db.updateTask(taskId, { column: col });
+      db.moveTask(taskId, col, index);
       loadData();
       if (selectedTask && selectedTask.id === taskId) {
         selectedTask.column = col;
@@ -426,7 +463,7 @@
 </script>
 
 <svelte:head>
-  <title>{project ? `${project.name} — TeamForge` : 'Project Workspace — TeamForge'}</title>
+  <title>{project ? `${project.name} — Project-Sync` : 'Project Workspace — Project-Sync'}</title>
 </svelte:head>
 
 {#if !loaded}
@@ -520,6 +557,7 @@
           {#each project.members.slice(0, 5) as member (member.userId)}
             <Avatar
               src={member.avatar}
+              userId={member.userId}
               name={member.name}
               size="sm"
               class="ring-2 ring-card"
@@ -550,8 +588,12 @@
         { value: 'feedback-timeline', label: 'Timeline & feedback' }
       ]}
       bind:active={activeTab}
+      bind:direction={tabDirection}
     />
 
+    <!-- Each section slides in from the side the tab strip moved towards. -->
+    {#key activeTab}
+    <div class="tab-panel" style="--dir: {tabDirection}" role="tabpanel" aria-label="{activeTab.replace('-', ' ')}">
     {#if activeTab === 'overview'}
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div class="lg:col-span-2 flex flex-col gap-4">
@@ -696,7 +738,7 @@
         >
           {#if mentor || project.mentorName}
             <div class="flex items-center gap-3 pb-3 mb-3 border-b border-border">
-              <Avatar src={mentor?.avatar ?? ''} name={mentor?.name ?? project.mentorName ?? ''} size="sm" />
+              <Avatar src={mentor?.avatar ?? ''} userId={project.mentorId} name={mentor?.name ?? project.mentorName ?? ''} size="sm" />
               <div class="flex flex-col min-w-0 leading-tight">
                 <span class="text-sm font-bold text-foreground truncate">{mentor?.name ?? project.mentorName}</span>
                 <span class="text-3xs text-accent uppercase tracking-wider font-semibold">Mentor</span>
@@ -706,7 +748,7 @@
           <ul class="flex flex-col gap-3">
             {#each project.members as member (member.userId)}
               <li class="flex items-center gap-3">
-                <Avatar src={member.avatar} name={member.name} size="sm" />
+                <Avatar src={member.avatar} userId={member.userId} name={member.name} size="sm" />
                 <div class="flex flex-col min-w-0 leading-tight">
                   <span class="text-sm font-bold text-foreground truncate">{member.name}</span>
                   <span
@@ -759,79 +801,20 @@
           {/if}
         </div>
 
-        <!-- Four lanes side by side on desktop; on narrow screens they stack so
-             the cards stay readable instead of shrinking to a sliver. -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
-          {#each columns as col (col.key)}
-            {@const colTasks = tasks.filter((t) => t.column === col.key)}
-            <section
-              aria-label="{col.label} column"
-              class="flex flex-col gap-2.5 p-3 bg-muted/40 border border-border rounded-lg xl:min-h-112"
-            >
-              <div class="flex items-center gap-2 pb-2 border-b border-border">
-                <span class="w-1.5 h-1.5 rounded-full {col.rule}" aria-hidden="true"></span>
-                <h3 class="text-2xs font-bold uppercase tracking-wider text-foreground">{col.label}</h3>
-                <span class="ml-auto text-2xs font-bold text-muted-foreground tabular">{colTasks.length}</span>
-              </div>
+        {#if canManage}
+          <p class="text-2xs text-muted-foreground -mt-2">
+            Drag cards between columns or up and down to reorder. Each card's status menu does the same from a keyboard.
+          </p>
+        {/if}
 
-              <ul class="flex flex-col gap-2.5">
-                {#each colTasks as t (t.id)}
-                  <li class="bg-card border border-border rounded-md shadow-e1 hover:border-accent/35 transition-colors">
-                    <button
-                      onclick={() => viewTaskDetails(t)}
-                      class="w-full text-left p-3.5 cursor-pointer rounded-t-md"
-                    >
-                      <div class="flex justify-between items-start gap-2">
-                        <span class="text-sm font-bold text-foreground line-clamp-2 leading-snug">
-                          {t.title}
-                        </span>
-                        <Badge variant={priorityTone[t.priority]} size="sm" class="capitalize shrink-0">
-                          {t.priority}
-                        </Badge>
-                      </div>
-                      <p class="text-2xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
-                        {t.description}
-                      </p>
-                      <p
-                        class="mt-2.5 inline-flex items-center gap-1.5 text-3xs font-semibold tabular
-                          {t.deadline < today && t.column !== 'completed'
-                          ? 'text-destructive'
-                          : 'text-muted-foreground'}"
-                      >
-                        <Calendar class="w-3 h-3" aria-hidden="true" />
-                        {t.deadline}
-                      </p>
-                    </button>
-
-                    <!-- Status is a labelled select rather than a drag gesture,
-                         so moving a task works with a keyboard and on touch. -->
-                    {#if canManage}
-                      <div class="px-3.5 pb-3 pt-0">
-                        <label for="move-{t.id}" class="sr-only">Status of "{t.title}"</label>
-                        <select
-                          id="move-{t.id}"
-                          value={t.column}
-                          onchange={(e) => updateTaskColumn(t.id, (e.target as HTMLSelectElement).value as any)}
-                          class="field-select h-8 w-full text-2xs font-semibold"
-                        >
-                          {#each columns as target (target.key)}
-                            <option value={target.key}>{target.label}</option>
-                          {/each}
-                        </select>
-                      </div>
-                    {/if}
-                  </li>
-                {:else}
-                  <li
-                    class="py-6 text-center text-2xs text-muted-foreground border border-dashed border-border rounded-md"
-                  >
-                    Nothing here
-                  </li>
-                {/each}
-              </ul>
-            </section>
-          {/each}
-        </div>
+        <KanbanBoard
+          {tasks}
+          members={project.members}
+          {canManage}
+          {today}
+          onopen={viewTaskDetails}
+          onmove={moveTask}
+        />
       </div>
     {:else if activeTab === 'discussions'}
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
@@ -947,7 +930,7 @@
               <ul class="flex flex-col gap-2.5 max-h-80 overflow-y-auto">
                 {#each selectedThread.replies as rep (rep.id)}
                   <li class="flex gap-2.5">
-                    <Avatar src={rep.authorAvatar} name={rep.authorName} size="xs" class="mt-0.5" />
+                    <Avatar src={rep.authorAvatar} userId={rep.authorId} name={rep.authorName} size="xs" class="mt-0.5" />
                     <div class="flex-1 min-w-0 p-2.5 border border-border rounded-md bg-card">
                       <div class="flex items-baseline justify-between gap-3">
                         <span class="text-2xs font-bold text-foreground">{rep.authorName}</span>
@@ -1316,6 +1299,8 @@
         </Card>
       </div>
     {/if}
+    </div>
+    {/key}
   </div>
 
   <Dialog bind:open={inviteDialogOpen} size="sm" title="Invite a classmate">
@@ -1337,7 +1322,7 @@
 
       {#if inviteSuggestions.length > 0}
         <div class="mt-3 pt-3 border-t border-border flex flex-col gap-2">
-          <p class="eyebrow">Brings a skill you still need</p>
+          <p class="eyebrow">Best matches for the skills you still need</p>
           {#each inviteSuggestions as s (s.user.id)}
             <button
               type="button"
@@ -1345,7 +1330,7 @@
               class="flex items-center gap-3 p-2 rounded-md border text-left transition-colors cursor-pointer
                 {inviteEmail === s.user.email ? 'border-accent bg-accent/8' : 'border-border hover:bg-secondary'}"
             >
-              <Avatar src={s.user.avatar} name={s.user.name} size="sm" />
+              <Avatar src={s.user.avatar} userId={s.user.id} name={s.user.name} size="sm" />
               <span class="min-w-0 leading-tight">
                 <span class="block text-xs font-bold text-foreground truncate">{s.user.name}</span>
                 <span class="block text-2xs text-muted-foreground truncate">{s.brings.join(' · ')}</span>
@@ -1462,7 +1447,7 @@
           <ul class="flex flex-col gap-2 max-h-48 overflow-y-auto mt-2">
             {#each selectedTask.comments as comment (comment.id)}
               <li class="flex gap-2.5 p-2.5 border border-border rounded-md bg-muted/30">
-                <Avatar src={comment.userAvatar} name={comment.userName} size="xs" />
+                <Avatar src={comment.userAvatar} userId={comment.userId} name={comment.userName} size="xs" />
                 <div class="flex-1 min-w-0">
                   <div class="flex items-baseline justify-between gap-3">
                     <span class="text-2xs font-bold text-foreground">{comment.userName}</span>

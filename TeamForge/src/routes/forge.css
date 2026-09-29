@@ -1,0 +1,969 @@
+/*
+  ──────────────────────────────────────────────────────────────────────────
+  FORGE — the surface and motion language.
+
+  Every surface tells one small story: it starts as a blueprint (dashed,
+  registration marks), is heated (an ember arc runs its edge), and is quenched
+  (it cools into a solid, quiet plate). Motion is orchestrated around that:
+  things arrive hot and settle cool; nothing bounces for its own sake.
+
+  All rules live in the components layer so a Tailwind utility on the same
+  element still wins. Everything animated has a reduced-motion fallback at
+  the bottom of this file.
+  ──────────────────────────────────────────────────────────────────────────
+*/
+
+/* Animatable custom properties drive the ember arc and cooling glow. */
+@property --heat-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@property --sheen {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: -60%;
+}
+
+:root {
+  --ease-forge: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.55, 0, 0.1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ember: var(--accent);
+  /* White-hot: the accent pushed towards pale gold, for the brightest point of a flame. */
+  --ember-hot: color-mix(in oklab, var(--accent) 45%, #ffd79a);
+  --mark: color-mix(in oklab, var(--foreground) 32%, transparent);
+  --blueprint-line: color-mix(in oklab, var(--info) 38%, transparent);
+}
+.dark {
+  --ember-hot: color-mix(in oklab, var(--accent) 50%, #fff0d0);
+  --mark: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --blueprint-line: color-mix(in oklab, var(--info) 45%, transparent);
+}
+
+@layer components {
+  /* ────────────────────────────────────────────────── forged plate (cards) */
+  .forge-card {
+    position: relative;
+    isolation: isolate;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    --heat-color: var(--ember);
+    transition:
+      border-color 0.5s ease,
+      box-shadow 0.5s ease,
+      transform 0.55s var(--ease-forge);
+  }
+
+  /* The ember arc: a conic gradient clipped to the 1px border ring. It runs
+     once around the edge when the pointer arrives, then fades. */
+  .forge-card::before,
+  .heat-ring::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    z-index: 2;
+    background: conic-gradient(
+      from var(--heat-angle),
+      transparent 0deg 230deg,
+      color-mix(in oklab, var(--heat-color, var(--ember)) 45%, transparent) 300deg,
+      var(--ember-hot) 350deg,
+      transparent 360deg
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box exclude,
+      linear-gradient(#000 0 0);
+    opacity: 0;
+  }
+
+  /* Registration marks: four drafting corners that float just outside the plate. */
+  .forge-card::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    pointer-events: none;
+    --m: 10px;
+    --t: 1px;
+    background:
+      linear-gradient(var(--mark), var(--mark)) top left / var(--m) var(--t) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top left / var(--t) var(--m) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / var(--m) var(--t) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) top right / var(--t) var(--m) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / var(--m) var(--t) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom left / var(--t) var(--m) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / var(--m) var(--t) no-repeat,
+      linear-gradient(var(--mark), var(--mark)) bottom right / var(--t) var(--m) no-repeat;
+    opacity: 0;
+    transition:
+      opacity 0.35s ease,
+      inset 0.55s var(--ease-forge);
+  }
+
+  @media (hover: hover) {
+    .forge-card:hover {
+      border-color: color-mix(in oklab, var(--heat-color) 30%, var(--border));
+    }
+    .forge-card:hover::before {
+      animation: heat-trace 1.15s var(--ease-snap) forwards;
+    }
+    .forge-card:hover::after {
+      opacity: 1;
+      inset: -9px;
+    }
+    /* Lifted plates (links, pickable items) rise a little and cast a warm shadow. */
+    .forge-card[data-lift]:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 34px -22px color-mix(in oklab, var(--heat-color) 55%, transparent);
+    }
+  }
+
+  /* Header rule: a hairline with a short ember gauge that extends on hover. */
+  .forge-rule {
+    position: relative;
+    height: 1px;
+    background: var(--border);
+  }
+  .forge-rule::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 1px;
+    width: 18px;
+    background: linear-gradient(to right, var(--ember), color-mix(in oklab, var(--ember) 0%, transparent));
+    transition: width 0.7s var(--ease-forge);
+  }
+  .forge-card:hover .forge-rule::before {
+    width: 96px;
+  }
+
+  /* Variants ------------------------------------------------------------- */
+  .forge-card[data-variant='blueprint'] {
+    border-style: dashed;
+    border-color: var(--blueprint-line);
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      var(--card);
+    background-image:
+      linear-gradient(to right, color-mix(in oklab, var(--info) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklab, var(--info) 7%, transparent) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  .forge-card[data-variant='ember'] {
+    background:
+      radial-gradient(120% 90% at 100% 0%, color-mix(in oklab, var(--ember) 10%, transparent), transparent 60%),
+      var(--card);
+    border-color: color-mix(in oklab, var(--ember) 28%, var(--border));
+  }
+
+  /* Slow ember breathing for surfaces that need attention (high-risk teams). */
+  .ember-breathe {
+    animation: ember-breathe 3.2s ease-in-out infinite;
+  }
+
+  /* ──────────────────────────────────────────── quench (entrance motion) */
+  /* A plate arrives hot — rising, edge glowing — and cools as it settles.
+     `--i` (set by `use:stagger`) spaces siblings out. `backwards` so the
+     animation never holds a transform after it ends (hover still works). */
+  .quench {
+    animation: quench 0.8s var(--ease-forge) backwards;
+    animation-delay: calc(var(--i, 0) * 55ms + 40ms);
+  }
+  .quench.ember-breathe {
+    animation:
+      quench 0.8s var(--ease-forge) backwards,
+      ember-breathe 3.2s ease-in-out 1.2s infinite;
+    animation-delay: calc(var(--i, 0) * 55ms + 40ms), 1.2s;
+  }
+  /* Remounts caused by a live data refresh must not replay the entrance. */
+  [data-calm] .quench,
+  [data-calm] .tab-panel {
+    animation: none;
+  }
+
+  /* ─────────────────────────────────────────────────── ingot (stat tiles) */
+  .ingot-clip {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .ingot-corner {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 22px;
+    height: 22px;
+    background: linear-gradient(225deg, var(--tone) 0 50%, transparent 50%);
+    opacity: 0.9;
+    transition: width 0.5s var(--ease-forge), height 0.5s var(--ease-forge);
+  }
+  .ingot:hover .ingot-corner {
+    width: 30px;
+    height: 30px;
+  }
+  /* Anneal sheen: a band of light passes across the metal on hover. */
+  .ingot-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent calc(var(--sheen) - 18%),
+      color-mix(in oklab, var(--ember-hot) 16%, transparent) var(--sheen),
+      transparent calc(var(--sheen) + 18%)
+    );
+  }
+  @media (hover: hover) {
+    .ingot:hover .ingot-sheen {
+      animation: sheen 1.1s var(--ease-snap) forwards;
+    }
+  }
+  .ingot-ghost {
+    position: absolute;
+    right: -10px;
+    bottom: -14px;
+    width: 76px;
+    height: 76px;
+    color: var(--tone);
+    opacity: 0.07;
+    transform: rotate(-12deg);
+    transition: transform 0.8s var(--ease-forge), opacity 0.5s ease;
+  }
+  .ingot:hover .ingot-ghost {
+    transform: rotate(0deg) scale(1.08);
+    opacity: 0.12;
+  }
+
+  /* ─────────────────────────────────────────────────────────── odometer */
+  .odo {
+    display: inline-flex;
+    --h: 1.08em;
+    line-height: var(--h);
+    height: var(--h);
+    overflow: hidden;
+    vertical-align: bottom;
+  }
+  .odo-col {
+    display: inline-block;
+    height: var(--h);
+    overflow: hidden;
+  }
+  .odo-strip {
+    display: flex;
+    flex-direction: column;
+    transform: translateY(calc(var(--d, 0) * var(--h) * -1));
+    transition: transform 1.1s var(--ease-forge);
+  }
+  .odo-strip > span {
+    height: var(--h);
+  }
+
+  /* ────────────────────────────────────────────── molten tab indicator */
+  .tab-molten {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--ember), var(--ember-hot), var(--ember));
+    box-shadow: 0 0 12px -2px color-mix(in oklab, var(--ember) 70%, transparent);
+  }
+  .tab-molten[data-variant='pills'] {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 0 0 color-mix(in oklab, var(--ember) 45%, transparent) inset, var(--shadow-e1);
+  }
+
+  /* Tab panels slide in from the side the selection moved towards. */
+  .tab-panel {
+    animation: panel-in 0.5s var(--ease-forge) backwards;
+  }
+
+  /* ────────────────────────────────────────────────────── ignite (buttons) */
+  .btn-ignite {
+    overflow: hidden;
+    isolation: isolate;
+    transition:
+      transform 0.45s var(--ease-spring),
+      background-color 0.2s ease,
+      box-shadow 0.35s ease;
+  }
+  /* A pool of heat that follows the pointer across the button. */
+  .btn-ignite::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      110px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in oklab, var(--ember-hot) 70%, transparent),
+      transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .btn-ignite:hover::before {
+    opacity: 0.55;
+  }
+  .btn-ignite:hover {
+    box-shadow: 0 10px 24px -14px var(--ember);
+  }
+  .btn-ignite:active {
+    transform: scale(0.965);
+    transition-duration: 0.08s;
+  }
+  /* Release pulse: one ring of heat expands out of the press point. */
+  .btn-ignite[data-pulse]::after {
+    content: '';
+    position: absolute;
+    left: var(--mx, 50%);
+    top: var(--my, 50%);
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 999px;
+    border: 2px solid var(--ember-hot);
+    pointer-events: none;
+    animation: pulse-ring 0.6s var(--ease-forge) forwards;
+  }
+
+  /* ────────────────────────────────────────────── ticket (Kanban cards) */
+  .ticket-shell {
+    position: relative;
+    transition: transform 0.45s var(--ease-spring), filter 0.3s ease;
+  }
+  .ticket {
+    --notch-y: 34px;
+    position: relative;
+    background: var(--card);
+    border-radius: var(--radius-md);
+    /* Two punched notches where the stub meets the body. */
+    -webkit-mask:
+      radial-gradient(circle 7px at 0 var(--notch-y), transparent 96%, #000 100%) left / 51% 100% no-repeat,
+      radial-gradient(circle 7px at 100% var(--notch-y), transparent 96%, #000 100%) right / 51% 100% no-repeat;
+    mask:
+      radial-gradient(circle 7px at 0 var(--notch-y), transparent 96%, #000 100%) left / 51% 100% no-repeat,
+      radial-gradient(circle 7px at 100% var(--notch-y), transparent 96%, #000 100%) right / 51% 100% no-repeat;
+    box-shadow: inset 0 0 0 1px var(--border);
+    transition: box-shadow 0.35s ease;
+  }
+  .ticket-stub {
+    height: var(--notch-y);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline: 0.875rem 0.75rem;
+  }
+  /* Perforation between stub and body. */
+  .ticket-perf {
+    height: 1px;
+    margin-inline: 12px;
+    background-image: linear-gradient(to right, var(--border) 55%, transparent 0);
+    background-size: 7px 1px;
+  }
+  .ticket-heat {
+    position: absolute;
+    left: 0;
+    top: 8px;
+    height: calc(var(--notch-y) - 16px);
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--heat);
+  }
+  .ticket-heat[data-hot] {
+    background: linear-gradient(to bottom, var(--ember-hot), var(--ember));
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--ember) 65%, transparent);
+  }
+  .ticket-heat[data-overdue] {
+    animation: ember-breathe-soft 2.4s ease-in-out infinite;
+  }
+  @media (hover: hover) {
+    .ticket-shell:hover .ticket {
+      box-shadow:
+        inset 0 0 0 1px color-mix(in oklab, var(--ember) 40%, var(--border)),
+        inset 0 -24px 32px -30px color-mix(in oklab, var(--ember) 45%, transparent);
+    }
+    .ticket-shell[data-grab]:hover {
+      transform: translateY(-2px) rotate(-0.4deg);
+      filter: drop-shadow(0 10px 14px color-mix(in oklab, var(--foreground) 12%, transparent));
+    }
+  }
+  .ticket-shell[data-dragging] {
+    opacity: 0.35;
+    filter: grayscale(0.6);
+  }
+  .ticket-shell[data-landed] {
+    animation: clank 0.62s var(--ease-forge);
+  }
+  .ticket-shell[data-landed] .ticket {
+    animation: ticket-glow 1.2s ease-out;
+  }
+
+  /* Sparks: tiny streaks thrown from a point, pulled down by gravity. */
+  .spark-burst {
+    position: fixed;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 90;
+  }
+  .spark {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    height: var(--len, 7px);
+    border-radius: 2px;
+    background: linear-gradient(to bottom, var(--ember-hot), var(--spark-color, var(--ember)));
+    box-shadow: 0 0 6px var(--spark-color, var(--ember));
+    transform-origin: 50% 0;
+    animation: spark-fly var(--life, 650ms) cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+  }
+
+  /* ──────────────────────────────────────── dossier (Team Finder cards) */
+  .dossier {
+    perspective: 1400px;
+  }
+  .dossier-inner {
+    display: grid;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.85s var(--ease-forge);
+  }
+  .dossier[data-flipped] .dossier-inner {
+    transform: rotateY(180deg);
+  }
+  .dossier-face {
+    grid-area: 1 / 1;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .dossier-back {
+    transform: rotateY(180deg);
+  }
+
+  /* Gauge dial for the match score. */
+  .gauge-arc {
+    transition: stroke-dashoffset 1.3s var(--ease-forge);
+  }
+
+  /* ──────────────────────────────────────────────── dialog (forge open) */
+  .heat-ring {
+    position: relative;
+  }
+  .heat-ring::before {
+    animation: heat-trace 1.2s var(--ease-snap) 0.12s forwards;
+  }
+
+  /* ─────────────────────────────────────────── landing: capability plates */
+  /* Blueprint → forged: a dashed wireframe floods solid as it scrolls in. */
+  .bp-plate {
+    position: relative;
+    isolation: isolate;
+    border: 1px dashed var(--blueprint-line);
+    border-radius: var(--radius);
+    transition: border-color 0.8s ease;
+  }
+  .bp-plate::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background:
+      radial-gradient(90% 120% at 0% 0%, color-mix(in oklab, var(--ember) 9%, transparent), transparent 55%),
+      var(--card);
+    clip-path: circle(0% at 0% 0%);
+    transition: clip-path 1.1s var(--ease-forge);
+    transition-delay: var(--delay, 0ms);
+  }
+  .bp-plate[data-forged] {
+    border-style: solid;
+    border-color: var(--border);
+    transition-delay: var(--delay, 0ms);
+  }
+  .bp-plate[data-forged]::before {
+    clip-path: circle(150% at 0% 0%);
+  }
+  .bp-plate svg :is(path, circle, rect, line, polyline, polygon) {
+    stroke-dasharray: 80;
+    stroke-dashoffset: 80;
+    transition: stroke-dashoffset 1.4s var(--ease-forge);
+    transition-delay: calc(var(--delay, 0ms) + 250ms);
+  }
+  .bp-plate[data-forged] svg :is(path, circle, rect, line, polyline, polygon) {
+    stroke-dashoffset: 0;
+  }
+  .bp-coord {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--blueprint-line);
+    transition: color 0.8s ease, opacity 0.8s ease;
+  }
+  .bp-plate[data-forged] .bp-coord {
+    color: var(--muted-foreground);
+    opacity: 0.6;
+  }
+
+  /* ─────────────────────────────────────────────── landing: heat headline */
+  /* No overflow clip here: the rising word is revealed by its own animated
+     clip-path, which opens wide once it has risen so the glow can spill. */
+  .heat-word {
+    display: inline-block;
+    vertical-align: top;
+  }
+  .heat-word > span {
+    display: inline-block;
+    animation:
+      word-rise 1s var(--ease-forge) backwards,
+      word-cool 1.9s ease-out backwards;
+    animation-delay: calc(var(--w, 0) * 75ms + 120ms);
+  }
+
+  /* Headings that rise line by line out of a mask when they scroll in. */
+  .rise-line {
+    display: block;
+    overflow: hidden;
+    padding-bottom: 0.1em;
+    margin-bottom: -0.1em;
+  }
+  .rise-line > span {
+    display: block;
+    transform: translateY(110%);
+    transition: transform 1.1s var(--ease-forge);
+    transition-delay: calc(var(--l, 0) * 90ms);
+  }
+  [data-in] .rise-line > span {
+    transform: none;
+  }
+  .fade-up {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 0.9s ease,
+      transform 1.1s var(--ease-forge);
+    transition-delay: var(--delay, 200ms);
+  }
+  [data-in] .fade-up,
+  .fade-up[data-in] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* ─────────────────────────────────────── landing: stacking step deck */
+  .deck-card {
+    position: sticky;
+    top: calc(6.5rem + var(--i, 0) * 1.1rem);
+    transform-origin: 50% 0;
+    transform: scale(calc(1 - var(--p, 0) * 0.07)) translateY(calc(var(--p, 0) * -10px));
+    filter: saturate(calc(1 - var(--p, 0) * 0.5));
+    will-change: transform;
+  }
+  .deck-shade {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--background);
+    opacity: calc(var(--p, 0) * 0.45);
+    pointer-events: none;
+  }
+  .deck-numeral {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 0.8;
+    letter-spacing: -0.04em;
+    color: transparent;
+    -webkit-text-stroke: 1px color-mix(in oklab, var(--foreground) 22%, transparent);
+  }
+  .deck-card[data-stage='heat'] .deck-numeral {
+    -webkit-text-stroke-color: color-mix(in oklab, var(--ember) 60%, transparent);
+  }
+  .deck-card[data-stage='forged'] .deck-numeral {
+    color: color-mix(in oklab, var(--ember) 90%, transparent);
+    -webkit-text-stroke-color: transparent;
+    text-shadow: 0 0 40px color-mix(in oklab, var(--ember) 40%, transparent);
+  }
+
+  /* ─────────────────────────────────────────── landing: scroll heat rail */
+  .heat-rail {
+    position: fixed;
+    right: 18px;
+    top: 50%;
+    height: 38vh;
+    width: 2px;
+    transform: translateY(-50%);
+    background: color-mix(in oklab, var(--foreground) 10%, transparent);
+    border-radius: 2px;
+    z-index: 30;
+  }
+  .heat-rail-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: calc(var(--progress, 0) * 100%);
+    border-radius: 2px;
+    background: linear-gradient(to bottom, color-mix(in oklab, var(--ember) 30%, transparent), var(--ember));
+  }
+  .heat-rail-fill::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -4px;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+    border-radius: 999px;
+    background: var(--ember-hot);
+    box-shadow: 0 0 12px 3px color-mix(in oklab, var(--ember) 70%, transparent);
+  }
+
+  /* ─────────────────────────────────────────────────── ember cursor */
+  .ember-cursor {
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 200;
+  }
+  .ember-cursor-ring {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    border-radius: 999px;
+    border: 1.5px solid color-mix(in oklab, var(--ember) 75%, transparent);
+    display: grid;
+    place-items: center;
+    transition:
+      width 0.35s var(--ease-forge),
+      height 0.35s var(--ease-forge),
+      margin 0.35s var(--ease-forge),
+      background-color 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .ember-cursor-dot {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    margin: -2.5px 0 0 -2.5px;
+    border-radius: 999px;
+    background: var(--ember);
+    box-shadow: 0 0 8px var(--ember);
+  }
+  .ember-cursor[data-state='link'] .ember-cursor-ring {
+    width: 54px;
+    height: 54px;
+    margin: -27px 0 0 -27px;
+    background: color-mix(in oklab, var(--ember) 10%, transparent);
+  }
+  .ember-cursor[data-state='drag'] .ember-cursor-ring {
+    width: 74px;
+    height: 74px;
+    margin: -37px 0 0 -37px;
+    background: color-mix(in oklab, var(--ember) 14%, transparent);
+    border-style: dashed;
+  }
+  .ember-cursor[data-down] .ember-cursor-ring {
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+  }
+  .ember-cursor-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--ember);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .ember-cursor[data-state='drag'] .ember-cursor-label {
+    opacity: 1;
+  }
+
+  /* ─────────────────────────────────────── navigation spark (page change) */
+  .nav-spark {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 2px;
+    width: 100%;
+    z-index: 120;
+    pointer-events: none;
+    transform-origin: 0 50%;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--ember) 70%, transparent) 60%, var(--ember-hot));
+    animation: nav-spark 0.7s var(--ease-snap) forwards;
+  }
+  .nav-spark::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin-top: -5px;
+    border-radius: 999px;
+    background: var(--ember-hot);
+    box-shadow: 0 0 16px 5px color-mix(in oklab, var(--ember) 65%, transparent);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────── keyframes */
+@keyframes heat-trace {
+  0% {
+    opacity: 1;
+    --heat-angle: 0deg;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    --heat-angle: 360deg;
+  }
+}
+
+@keyframes quench {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+    clip-path: inset(-40px -40px 40% -40px round var(--radius));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--ember) 80%, transparent),
+      0 0 28px -6px var(--ember);
+  }
+  45% {
+    opacity: 1;
+    clip-path: inset(-40px round var(--radius));
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--ember) 45%, transparent),
+      0 0 20px -8px var(--ember);
+  }
+  100% {
+    transform: none;
+    clip-path: inset(-40px round var(--radius));
+    box-shadow:
+      0 0 0 1px transparent,
+      0 0 0 0 transparent;
+  }
+}
+
+@keyframes ember-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--heat-color, var(--ember)) 35%, transparent),
+      0 0 26px -8px var(--heat-color, var(--ember));
+  }
+}
+@keyframes ember-breathe-soft {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes sheen {
+  from {
+    --sheen: -60%;
+  }
+  to {
+    --sheen: 160%;
+  }
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--dir, 1) * 22px));
+    filter: blur(3px);
+  }
+}
+
+@keyframes pulse-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(9);
+    opacity: 0;
+  }
+}
+
+@keyframes clank {
+  0% {
+    transform: translateY(-10px) scale(1.035) rotate(-1.2deg);
+  }
+  35% {
+    transform: translateY(1px) scale(0.985) rotate(0.3deg);
+  }
+  60% {
+    transform: translateY(-1px) scale(1.005);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes ticket-glow {
+  0% {
+    box-shadow:
+      inset 0 0 0 1px var(--ember-hot),
+      inset 0 0 26px -6px var(--ember);
+  }
+  100% {
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+}
+
+@keyframes spark-fly {
+  0% {
+    transform: rotate(var(--rot)) translateY(0) scaleY(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--gx, 0), var(--gy, 18px)) rotate(var(--rot)) translateY(var(--dist)) scaleY(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes word-rise {
+  0% {
+    transform: translateY(70%) rotate(4deg);
+    clip-path: inset(-10% -30% 100% -30%);
+  }
+  70% {
+    clip-path: inset(-60% -30% -20% -30%);
+  }
+  100% {
+    transform: none;
+    clip-path: inset(-60% -30% -60% -30%);
+  }
+}
+@keyframes word-cool {
+  from {
+    color: var(--ember-hot);
+    text-shadow:
+      0 0 18px color-mix(in oklab, var(--ember) 80%, transparent),
+      0 0 42px color-mix(in oklab, var(--ember) 45%, transparent);
+  }
+  55% {
+    color: var(--ember);
+  }
+}
+
+@keyframes nav-spark {
+  0% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  70% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+/* Page transitions (View Transitions API, wired in the root layout). The old
+   page loses focus into a blur; the new one slides in from the direction of
+   travel (`--nav-dir`), and its plates then quench in on their own. */
+::view-transition-old(root) {
+  animation: vt-forge-out 0.22s var(--ease-snap) both;
+}
+::view-transition-new(root) {
+  animation: vt-forge-in 0.5s var(--ease-forge) both;
+}
+::view-transition-group(app-sidebar),
+::view-transition-group(app-header) {
+  animation: none;
+}
+@keyframes vt-forge-out {
+  to {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(calc(var(--nav-dir, 1) * -10px)) scale(0.992);
+  }
+}
+@keyframes vt-forge-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--nav-dir, 1) * 18px));
+  }
+}
+
+/* ────────────────────────────────────────────────────────── reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .quench,
+  .tab-panel,
+  .heat-word > span,
+  .ember-breathe,
+  .ticket-heat[data-overdue],
+  .ticket-shell[data-landed],
+  .ticket-shell[data-landed] .ticket,
+  .nav-spark,
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+  .forge-card:hover::before,
+  .heat-ring::before,
+  .ingot:hover .ingot-sheen {
+    animation: none;
+  }
+  .odo-strip,
+  .gauge-arc,
+  .bp-plate::before,
+  .bp-plate svg :is(path, circle, rect, line, polyline, polygon) {
+    transition: none;
+  }
+  /* The flip becomes a plain crossfade. */
+  .dossier-inner {
+    transition: none;
+  }
+  .dossier[data-flipped] .dossier-inner {
+    transform: none;
+  }
+  .dossier-back {
+    transform: none;
+    opacity: 0;
+  }
+  .dossier[data-flipped] .dossier-back {
+    opacity: 1;
+  }
+  .dossier[data-flipped] .dossier-front {
+    opacity: 0;
+  }
+  .deck-card {
+    transform: none;
+    filter: none;
+  }
+  .rise-line > span,
+  .fade-up {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+  .deck-shade {
+    opacity: 0;
+  }
+}

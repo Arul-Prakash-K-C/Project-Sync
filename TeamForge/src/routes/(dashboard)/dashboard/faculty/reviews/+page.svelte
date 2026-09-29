@@ -85,7 +85,7 @@
 </script>
 
 <svelte:head>
-  <title>Weekly Reviews — TeamForge</title>
+  <title>Weekly Reviews — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

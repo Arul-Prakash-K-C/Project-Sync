@@ -49,7 +49,7 @@ export async function downloadPdf({ title, subtitle, filename, rows }: PdfReport
       const page = doc.getNumberOfPages();
       doc.setFontSize(8);
       doc.setTextColor(150, 156, 166);
-      doc.text(`TeamForge · ${title}`, margin, doc.internal.pageSize.getHeight() - 20);
+      doc.text(`Project-Sync · ${title}`, margin, doc.internal.pageSize.getHeight() - 20);
       doc.text(`Page ${page}`, pageWidth - margin, doc.internal.pageSize.getHeight() - 20, { align: 'right' });
     }
   });

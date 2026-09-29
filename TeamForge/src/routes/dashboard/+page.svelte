@@ -11,7 +11,7 @@
 </script>
 
 <svelte:head>
-  <title>Redirecting — TeamForge</title>
+  <title>Redirecting — Project-Sync</title>
 </svelte:head>
 
 <!-- Role-based redirect. It is on screen for a frame or two, so it says what it

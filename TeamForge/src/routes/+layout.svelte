@@ -4,6 +4,7 @@
   import './layout.css';
   import favicon from '$lib/assets/favicon.svg';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import { navDirection, navSpark } from '$lib/actions/forge';
 
   let { children } = $props();
   let isDark = $state(false);
@@ -44,6 +45,13 @@
     // Same-page hash jumps and query tweaks are not page changes.
     if (navigation.from?.url.pathname === navigation.to?.url.pathname) return;
 
+    // Slide the new page in from the direction of travel, and scan a spark across the top.
+    document.documentElement.style.setProperty(
+      '--nav-dir',
+      String(navDirection(navigation.from?.url.pathname, navigation.to?.url.pathname))
+    );
+    navSpark();
+
     return new Promise((resolve) => {
       const transition = document.startViewTransition(async () => {
         resolve();
@@ -66,14 +74,15 @@
 </script>
 
 <svelte:head>
-  <link rel="icon" href={favicon} />
+  <link rel="icon" href={favicon} type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content={isDark ? '#0A0D12' : '#F5F6F8'} />
   <meta
     name="description"
-    content="TeamForge is an intelligent project team finder and collaboration platform for academic capstone teams — form teams, track milestones and tasks, and manage faculty review in one place."
+    content="Project-Sync is an intelligent project team finder and collaboration platform for academic capstone teams — form teams, track milestones and tasks, and manage faculty review in one place."
   />
-  <title>TeamForge – Intelligent Project Team Finder & Collaboration Platform</title>
+  <title>Project-Sync – Intelligent Project Team Finder & Collaboration Platform</title>
 </svelte:head>
 
 <div class="min-h-screen flex flex-col font-sans">

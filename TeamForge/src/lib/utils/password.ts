@@ -1,5 +1,5 @@
 /**
- * Password Security Utility for TeamForge
+ * Password Security Utility for Project-Sync
  * 
  * Implements:
  * 1. PBKDF2-HMAC-SHA-256 with 100,000 iterations & random 16-byte salt

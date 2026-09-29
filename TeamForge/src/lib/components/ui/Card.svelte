@@ -1,6 +1,10 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
 
+  /**
+   * A forged plate (see src/routes/forge.css): it quenches in on mount, an
+   * ember arc runs its edge and drafting marks open at the corners on hover.
+   */
   let {
     children,
     title = '',
@@ -10,9 +14,14 @@
     actions,
     class: className = '',
     bodyClass = '',
+    /** Rises and casts a warm shadow on hover: for cards that are links or pickable. */
     hoverable = false,
     /** Drops the default padding so tables and lists can run edge to edge. */
     flush = false,
+    /** `plate` (default), `blueprint` (dashed drafting grid) or `ember` (warm, for emphasis). */
+    variant = 'plate',
+    /** Play the quench entrance. Turn off for cards that re-render often. */
+    enter = true,
     ...rest
   }: {
     children?: Snippet;
@@ -23,24 +32,17 @@
     bodyClass?: string;
     hoverable?: boolean;
     flush?: boolean;
+    variant?: 'plate' | 'blueprint' | 'ember';
+    enter?: boolean;
     [key: string]: any;
   } = $props();
 
   const hasHeader = $derived(Boolean(title) || Boolean(actions));
 </script>
 
-<div
-  class="rounded-lg border border-border bg-card text-card-foreground shadow-e1
-    {flush ? 'overflow-hidden' : 'p-5'}
-    {hoverable ? 'transition-[box-shadow,border-color,transform] duration-300 hover:shadow-e2 hover:border-accent/30 hover:-translate-y-0.5' : ''}
-    {className}"
-  {...rest}
->
+{#snippet content()}
   {#if hasHeader}
-    <div
-      class="flex items-start justify-between gap-4 border-b border-border pb-3 mb-4
-        {flush ? 'px-5 pt-5' : ''}"
-    >
+    <div class="flex items-start justify-between gap-4 pb-3 {flush ? 'px-5 pt-5' : ''}">
       <div class="min-w-0">
         {#if title}
           <h3 class="text-sm font-bold text-foreground">{title}</h3>
@@ -55,6 +57,7 @@
         </div>
       {/if}
     </div>
+    <div class="forge-rule mb-4" aria-hidden="true"></div>
   {/if}
 
   <!-- Without a header the children are rendered directly, so a caller can make
@@ -65,5 +68,22 @@
     </div>
   {:else if children}
     {@render children()}
+  {/if}
+{/snippet}
+
+<div
+  class="forge-card text-card-foreground {enter ? 'quench' : ''} {flush ? '' : 'p-5'} {className}"
+  data-variant={variant === 'plate' ? undefined : variant}
+  data-lift={hoverable || undefined}
+  {...rest}
+>
+  {#if flush}
+    <!-- Flush content is clipped to the plate's corners by an inner layer, so
+         the drafting marks outside the edge stay visible. -->
+    <div class="rounded-[inherit] overflow-hidden">
+      {@render content()}
+    </div>
+  {:else}
+    {@render content()}
   {/if}
 </div>

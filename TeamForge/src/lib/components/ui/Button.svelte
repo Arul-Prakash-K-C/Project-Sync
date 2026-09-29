@@ -41,6 +41,25 @@
   };
 
   const isDisabled = $derived(disabled || loading);
+
+  /* Solid buttons "ignite": a pool of heat follows the pointer, the press
+     springs, and releasing sends one ring of heat out from the press point. */
+  const ignites = $derived(variant === 'primary' || variant === 'danger' || variant === 'success');
+
+  function track(e: PointerEvent) {
+    const el = e.currentTarget as HTMLElement;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    el.style.setProperty('--my', `${e.clientY - r.top}px`);
+  }
+
+  function pulse(e: PointerEvent) {
+    const el = e.currentTarget as HTMLElement;
+    track(e);
+    el.removeAttribute('data-pulse');
+    void el.offsetWidth; // restart the animation on rapid presses
+    el.setAttribute('data-pulse', '');
+  }
 </script>
 
 <button
@@ -48,9 +67,12 @@
   disabled={isDisabled}
   aria-busy={loading || undefined}
   {onclick}
+  onpointermove={ignites ? track : undefined}
+  onpointerup={ignites ? pulse : undefined}
+  onanimationend={(e) => (e.currentTarget as HTMLElement).removeAttribute('data-pulse')}
   class="relative inline-flex items-center justify-center whitespace-nowrap font-semibold
-    transition-[background-color,border-color,color,transform] duration-150
-    active:translate-y-px disabled:pointer-events-none disabled:opacity-50 cursor-pointer
+    disabled:pointer-events-none disabled:opacity-50 cursor-pointer
+    {ignites ? 'btn-ignite' : 'transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97]'}
     {variantStyles[variant]} {sizeStyles[size]} {className}"
   {...rest}
 >

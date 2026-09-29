@@ -105,7 +105,7 @@
 </script>
 
 <svelte:head>
-  <title>Announcements — TeamForge</title>
+  <title>Announcements — Project-Sync</title>
 </svelte:head>
 
 {#if auth.user}

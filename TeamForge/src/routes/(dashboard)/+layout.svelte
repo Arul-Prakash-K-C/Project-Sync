@@ -31,11 +31,18 @@
     FileText,
     History,
     Trash2,
-    RefreshCw
+    RefreshCw,
+    Search,
+    CheckCheck,
+    CircleUser
   } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
+  import CommandPalette, { type PaletteAction } from '$lib/components/CommandPalette.svelte';
+  import BrandLogo from '$lib/components/BrandLogo.svelte';
+  import { sequence } from '$lib/actions/forge';
+  import { afterNavigate } from '$app/navigation';
 
   let { children } = $props();
 
@@ -44,6 +51,8 @@
   let sidebarOpen = $state(true);
   let mobileSidebarOpen = $state(false);
   let notifOpen = $state(false);
+  let paletteOpen = $state(false);
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
   let notifications = $state<Notification[]>([]);
   let unreadCount = $derived(notifications.filter((n) => !n.read).length);
 
@@ -75,9 +84,14 @@
   let contentKey = $state(0);
   const supportsViewTransitions = typeof document !== 'undefined' && 'startViewTransition' in document;
 
+  /** True while the content was last remounted by a data refresh, not a navigation: entrances stay still. */
+  let calm = $state(false);
+  afterNavigate(() => (calm = false));
+
   function refreshView() {
     syncState.acknowledge();
     loadNotifications();
+    calm = true;
     contentKey++;
   }
 
@@ -161,7 +175,7 @@
     },
     {
       group: 'Account',
-      items: [{ href: '/dashboard/student/profile', label: 'My Profile', icon: GraduationCap }]
+      items: [{ href: '/dashboard/profile', label: 'My Profile', icon: GraduationCap }]
     }
   ];
 
@@ -193,6 +207,10 @@
         { href: '/dashboard/faculty/announcements', label: 'Announcements', icon: Megaphone },
         { href: '/dashboard/faculty/notes', label: 'Private Notes', icon: Notebook }
       ]
+    },
+    {
+      group: 'Account',
+      items: [{ href: '/dashboard/profile', label: 'My Profile', icon: CircleUser }]
     }
   ];
 
@@ -200,6 +218,10 @@
     {
       group: 'Administration',
       items: [{ href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutGrid }]
+    },
+    {
+      group: 'Account',
+      items: [{ href: '/dashboard/profile', label: 'My Profile', icon: CircleUser }]
     }
   ];
 
@@ -208,6 +230,39 @@
   );
 
   const flatNav = $derived(nav.flatMap((section) => section.items));
+
+  const palettePages = $derived(
+    nav.flatMap((section) => section.items.map((item) => ({ ...item, group: section.group })))
+  );
+
+  const paletteActions = $derived<PaletteAction[]>([
+    {
+      id: 'theme',
+      title: themeCtx?.isDark ? 'Switch to light theme' : 'Switch to dark theme',
+      icon: themeCtx?.isDark ? Sun : Moon,
+      keywords: ['theme', 'dark mode', 'light mode', 'appearance'],
+      run: () => themeCtx?.toggleTheme()
+    },
+    {
+      id: 'notifications',
+      title: 'Open notifications',
+      subtitle: unreadCount > 0 ? `${unreadCount} unread` : 'All caught up',
+      icon: Bell,
+      keywords: ['inbox', 'alerts'],
+      run: () => (notifOpen = true)
+    },
+    ...(unreadCount > 0
+      ? [{ id: 'read-all', title: 'Mark all notifications as read', icon: CheckCheck, keywords: ['clear'], run: markAllAsRead }]
+      : []),
+    {
+      id: 'sidebar',
+      title: sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar',
+      icon: sidebarOpen ? PanelLeftClose : PanelLeftOpen,
+      keywords: ['navigation', 'menu'],
+      run: toggleSidebar
+    },
+    { id: 'signout', title: 'Sign out', icon: LogOut, keywords: ['log out', 'logout', 'exit'], run: handleLogout }
+  ]);
 
   /*
     The header used to read a fixed "Workspace" on every route. Naming the
@@ -228,6 +283,11 @@
   }
 
   function handleDrawerKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      paletteOpen = !paletteOpen;
+      return;
+    }
     if (e.key === 'Escape') {
       notifOpen = false;
       mobileSidebarOpen = false;
@@ -270,19 +330,8 @@
         class="h-16 border-b border-border flex items-center gap-2 shrink-0
           {sidebarOpen ? 'px-4' : 'px-0 justify-center'}"
       >
-        <a
-          href="/"
-          class="flex items-center gap-2.5 min-w-0 rounded-sm"
-          aria-label="TeamForge home"
-        >
-          <span
-            class="chamfer w-9 h-9 bg-accent flex items-center justify-center text-accent-foreground
-              font-display text-sm shrink-0"
-            aria-hidden="true">TF</span
-          >
-          {#if sidebarOpen}
-            <span class="font-display text-base text-foreground truncate">TeamForge</span>
-          {/if}
+        <a href="/" class="flex items-center min-w-0 rounded-sm" aria-label="Project-Sync home">
+          <BrandLogo size="md" wordmark={sidebarOpen} />
         </a>
 
         {#if sidebarOpen}
@@ -358,15 +407,22 @@
       </nav>
 
       <div class="border-t border-border p-3 shrink-0 flex flex-col gap-2">
-        <div class="flex items-center gap-2.5 {sidebarOpen ? '' : 'justify-center'}">
-          <Avatar src={auth.user.avatar} name={auth.user.name} size={sidebarOpen ? 'sm' : 'sm'} />
+        <a
+          href="/dashboard/profile"
+          onclick={() => (mobileSidebarOpen = false)}
+          title={sidebarOpen ? 'Edit your profile' : `${auth.user.name}: edit your profile`}
+          class="flex items-center gap-2.5 p-1 -m-1 rounded-md hover:bg-secondary transition-colors {sidebarOpen ? '' : 'justify-center'}"
+        >
+          <Avatar src={auth.user.avatar} userId={auth.user.id} name={auth.user.name} size="sm" />
           {#if sidebarOpen}
             <div class="flex flex-col min-w-0 leading-tight">
               <span class="text-xs font-bold text-foreground truncate">{auth.user.name}</span>
-              <span class="text-3xs text-muted-foreground truncate">{roleLabel}</span>
+              <span class="text-3xs text-muted-foreground truncate">{auth.user.designation || roleLabel} · Edit profile</span>
             </div>
+          {:else}
+            <span class="sr-only">Edit your profile</span>
           {/if}
-        </div>
+        </a>
 
         <button
           onclick={handleLogout}
@@ -407,6 +463,19 @@
         </div>
 
         <div class="flex items-center gap-2">
+          <button
+            onclick={() => (paletteOpen = true)}
+            aria-label="Search and commands ({isMac ? '⌘' : 'Ctrl'}+K)"
+            aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
+            class="icon-action lg:w-auto lg:px-3 lg:gap-2 lg:justify-start lg:min-w-52"
+          >
+            <Search class="w-4 h-4 shrink-0" />
+            <span class="hidden lg:inline text-xs font-normal text-muted-foreground">Search…</span>
+            <kbd
+              class="hidden lg:inline-flex ml-auto h-5 px-1.5 items-center rounded-sm border border-border text-3xs font-semibold text-muted-foreground"
+              aria-hidden="true">{isMac ? '⌘' : 'Ctrl'} K</kbd
+            >
+          </button>
           {#if syncState.mode === 'cloud'}
             <span
               class="hidden sm:inline-flex items-center gap-1.5 px-2 h-7 rounded-full border border-border text-3xs font-semibold text-muted-foreground"
@@ -463,7 +532,11 @@
 
       <main id="main-content" class="flex-1 p-4 sm:p-6 lg:p-8">
         {#key `${$page.url.pathname}#${contentKey}`}
-          <div class={supportsViewTransitions && contentKey === 0 ? '' : 'page-in'}>
+          <div
+            class={supportsViewTransitions && contentKey === 0 ? '' : calm ? '' : 'page-in'}
+            data-calm={calm || undefined}
+            use:sequence
+          >
             {@render children()}
           </div>
         {/key}
@@ -485,6 +558,8 @@
         </div>
       {/if}
     </div>
+
+    <CommandPalette bind:open={paletteOpen} pages={palettePages} actions={paletteActions} />
 
     <!-- Notifications drawer -->
     {#if notifOpen}

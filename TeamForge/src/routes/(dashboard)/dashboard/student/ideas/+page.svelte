@@ -3,6 +3,7 @@
   import { auth } from '$lib/stores/auth.svelte';
   import { db, type ProjectIdea } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
+  import { coverSkills, coverageRatio } from '$lib/utils/skillGraph';
   import {
     Plus,
     Search,
@@ -196,19 +197,16 @@
     );
   }
 
-  // Calculate skill compatibility dynamically
+  /**
+   * How well you fit an idea: required skills covered through the skill graph
+   * (your React counts half towards a Svelte requirement), plus a bonus when
+   * the idea's domain is one of your interests.
+   */
   function calculateCompatibility(idea: ProjectIdea): number {
     if (!auth.user) return 0;
-    let score = 30; // base score
-
     if (idea.requiredSkills.length === 0) return 100;
-
-    const matchedSkills = idea.requiredSkills.filter((s) =>
-      auth.user!.skills.some((userSkill) => userSkill.toLowerCase() === s.trim().toLowerCase())
-    );
-
-    const skillRatio = matchedSkills.length / idea.requiredSkills.length;
-    score += Math.min(skillRatio * 50, 50);
+    let score = 30; // base score
+    score += coverageRatio(coverSkills(idea.requiredSkills, auth.user.skills)) * 50;
 
     const domainLower = idea.domain.toLowerCase();
     const matchesInterest = auth.user.interests.some(
@@ -278,7 +276,7 @@
 </script>
 
 <svelte:head>
-  <title>Project Ideas — TeamForge</title>
+  <title>Project Ideas — Project-Sync</title>
   <meta
     name="description"
     content="Students can publish project ideas, requirements, technology stacks, and domain details to attract compatible teammates and form final academic evaluation teams."
@@ -477,7 +475,7 @@
               <div class="mt-auto pt-4 flex items-center justify-between gap-3">
                 {#if activeTab === 'explore'}
                   <div class="flex items-center gap-2 min-w-0">
-                    <Avatar src={idea.ownerAvatar} name={idea.ownerName} size="xs" class="rounded-full" />
+                    <Avatar src={idea.ownerAvatar} userId={idea.ownerId} name={idea.ownerName} size="xs" class="rounded-full" />
                     <div class="min-w-0 leading-tight">
                       <p class="text-2xs font-bold text-foreground truncate">{idea.ownerName}</p>
                       <p class="text-3xs text-muted-foreground">
