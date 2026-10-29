@@ -42,6 +42,8 @@
       .join('')
       .toUpperCase()
   );
+  /** Null until you list skills of your own: without them the number isn't a match. */
+  const score = $derived(breakdown.noSkills ? null : breakdown.total);
   const top = $derived([...breakdown.factors].filter((f) => f.points > 0).sort((a, b) => b.points - a.points).slice(0, 3));
 
   async function flip(to: boolean) {
@@ -51,7 +53,7 @@
   }
 </script>
 
-<article bind:this={root} class="dossier h-full" data-flipped={flipped || undefined} aria-label="{user.name}, {breakdown.total}% match">
+<article bind:this={root} class="dossier h-full" data-flipped={flipped || undefined} aria-label={score === null ? `${user.name}, no match score yet` : `${user.name}, ${score}% match`}>
   <div class="dossier-inner">
     <!-- Front: the profile. -->
     <div class="dossier-face dossier-front forge-card quench p-5 flex flex-col" data-face="front" data-lift inert={flipped}>
@@ -70,7 +72,7 @@
           <p class="text-xs text-muted-foreground truncate mt-0.5">{user.department}</p>
           <p class="eyebrow mt-1">{user.academicYear}</p>
         </div>
-        <MatchGauge value={breakdown.total} label="Compatibility with {user.name}" />
+        <MatchGauge value={score} label="Compatibility with {user.name}" />
       </div>
 
       <p class="text-xs text-muted-foreground mt-3.5 line-clamp-2 leading-relaxed">
@@ -108,10 +110,13 @@
       <p class="font-mono text-[9px] tracking-[0.2em] text-muted-foreground flex items-center gap-2" aria-hidden="true">
         <span>EVIDENCE</span>
         <span class="flex-1 border-t border-dotted border-border"></span>
-        <span>{breakdown.total}/100</span>
+        <span>{score ?? '—'}/100</span>
       </p>
       <h3 class="font-display text-lg text-foreground mt-3">Why {first} fits</h3>
 
+      {#if score === null}
+        <p class="text-2xs text-muted-foreground mt-1">Add skills to your profile to get a match score.</p>
+      {/if}
       <ol class="flex flex-col gap-3 mt-3">
         {#each top as f, i (f.key)}
           <li class="grid grid-cols-[1.25rem_1fr_auto] gap-x-2 items-baseline">

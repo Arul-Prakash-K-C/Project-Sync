@@ -81,6 +81,15 @@ describe('calculateCompatibilityBreakdown', () => {
     expect(result.newFamilies.map((f) => f.family).sort()).toEqual(['backend', 'cloud', 'design']);
   });
 
+  it('gives no gap-filling points while you list no skills', () => {
+    const me = makeUser({ skills: [] });
+    const result = calculateCompatibilityBreakdown(me, makeUser({ skills: ['Docker', 'PostgreSQL', 'Figma'] }));
+    expect(result.noSkills).toBe(true);
+    expect(result.newFamilies).toEqual([]);
+    expect(factor(result, 'complement')!.points).toBe(0);
+    expect(factor(result, 'common')!.points).toBe(0);
+  });
+
   it('adds project fit only when matching for a project', () => {
     const me = makeUser({ skills: ['Svelte'] });
     const target = makeUser({ skills: ['Python', 'PyTorch'] });
