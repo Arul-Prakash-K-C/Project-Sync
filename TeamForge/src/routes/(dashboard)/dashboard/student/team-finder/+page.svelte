@@ -4,12 +4,13 @@
   import { db, type User, type Project } from '$lib/services/db';
   import { toast } from '$lib/stores/toast.svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import {
     calculateCompatibilityBreakdown,
     missingTeamSkills,
     type MatchContext
   } from '$lib/utils/compatibility';
-  import { Search, Compass, UserPlus, Sparkles, X, SlidersHorizontal, Target } from 'lucide-svelte';
+  import { Search, Compass, UserPlus, Sparkles, X, SlidersHorizontal, Target, Info } from 'lucide-svelte';
   import Button from '$lib/components/ui/Button.svelte';
   import Badge from '$lib/components/ui/Badge.svelte';
   import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -162,6 +163,22 @@
       icon={Compass}
       description="Classmates open to projects, ranked by the matching engine: common ground, the skill areas they add, and how well they fill your team's gaps."
     />
+
+    {#if auth.user.skills.length === 0}
+      <section
+        aria-label="Add your skills"
+        class="flex flex-col sm:flex-row sm:items-center gap-2.5 p-3 rounded-lg border border-accent/30 bg-accent/6"
+      >
+        <p class="flex items-start gap-2 text-xs text-foreground flex-1">
+          <Info class="w-4 h-4 text-accent shrink-0 mt-px" aria-hidden="true" />
+          <span>
+            <span class="font-bold">Add your skills to get match scores.</span>
+            <span class="text-muted-foreground">Scores compare your skills with each classmate's, so they stay blank until your profile lists some.</span>
+          </span>
+        </p>
+        <Button variant="primary" size="sm" onclick={() => goto('/dashboard/profile')}>Add skills</Button>
+      </section>
+    {/if}
 
     {#if ledProjects.length > 0}
       <section
@@ -375,7 +392,7 @@
           </div>
           <span class="ml-auto flex items-center gap-1.5 font-display text-xl text-foreground tabular">
             <Sparkles class="w-4 h-4 text-accent" aria-hidden="true" />
-            {breakdown.total}%
+            {breakdown.noSkills ? '—' : `${breakdown.total}%`}
           </span>
         </div>
 

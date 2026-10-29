@@ -52,6 +52,8 @@ export interface CompatibilityBreakdown {
   commonInterests: string[];
   departmentMatch: boolean;
   yearMatch: boolean;
+  /** You list no skills, so the skill factors have nothing to compare and the total is not a real match. */
+  noSkills: boolean;
 }
 
 const MAX = { common: 20, complement: 25, project: 25, interests: 10, department: 10, year: 5 } as const;
@@ -77,6 +79,7 @@ export function calculateCompatibilityBreakdown(
   const mine = me.skills;
   const theirs = target.skills;
   const mineNorm = new Set(mine.map(normalizeSkill));
+  const noSkills = mine.length === 0;
 
   const sharedSkills = theirs.filter((s) => mineNorm.has(normalizeSkill(s)));
   const relatedSkills = theirs
@@ -92,13 +95,16 @@ export function calculateCompatibilityBreakdown(
   const commonPoints = Math.round(cosine(myFamilies, theirFamilies) * MAX.common);
 
   // Complement: families they cover that you don't. Three new families is the most that counts.
-  const newFamilies = [...theirFamilies.keys()]
-    .filter((f) => !myFamilies.has(f))
-    .map((family) => ({
-      family,
-      label: FAMILY_LABELS[family],
-      skills: theirs.filter((s) => skillFamily(s) === family)
-    }));
+  // With no skills of your own there are no gaps to fill yet, only an empty profile.
+  const newFamilies = noSkills
+    ? []
+    : [...theirFamilies.keys()]
+        .filter((f) => !myFamilies.has(f))
+        .map((family) => ({
+          family,
+          label: FAMILY_LABELS[family],
+          skills: theirs.filter((s) => skillFamily(s) === family)
+        }));
   const complementPoints = Math.round((Math.min(newFamilies.length, 3) / 3) * MAX.complement);
 
   const factors: MatchFactor[] = [
@@ -107,8 +113,9 @@ export function calculateCompatibilityBreakdown(
       label: 'Common ground',
       points: commonPoints,
       max: MAX.common,
-      detail:
-        sharedSkills.length || relatedSkills.length
+      detail: noSkills
+        ? 'Add skills to your profile to compare.'
+        : sharedSkills.length || relatedSkills.length
           ? `${sharedSkills.length} shared and ${relatedSkills.length} related skill${relatedSkills.length === 1 ? '' : 's'}, so you can review each other's work.`
           : 'Your skills sit in different areas.'
     },
@@ -117,9 +124,11 @@ export function calculateCompatibilityBreakdown(
       label: 'Fills your gaps',
       points: complementPoints,
       max: MAX.complement,
-      detail: newFamilies.length
-        ? `Brings ${newFamilies.map((f) => f.label).join(', ')}, which you don't cover.`
-        : 'Adds no skill areas you lack.'
+      detail: noSkills
+        ? 'Add skills to your profile to see which areas they add.'
+        : newFamilies.length
+          ? `Brings ${newFamilies.map((f) => f.label).join(', ')}, which you don't cover.`
+          : 'Adds no skill areas you lack.'
     }
   ];
 
@@ -181,7 +190,8 @@ export function calculateCompatibilityBreakdown(
     projectFit,
     commonInterests,
     departmentMatch,
-    yearMatch
+    yearMatch,
+    noSkills
   };
 }
 

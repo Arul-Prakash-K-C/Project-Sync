@@ -7,7 +7,8 @@
    * sweeps up to the value on mount, the figure rolling up on an odometer in
    * the middle. The arc colour runs cool to hot with the score.
    */
-  let { value, size = 76, label }: { value: number; size?: number; label: string } = $props();
+  /** A null value means no score yet: the dial stays empty and reads "—". */
+  let { value, size = 76, label }: { value: number | null; size?: number; label: string } = $props();
 
   const R = 30;
   const C = 2 * Math.PI * R;
@@ -15,12 +16,14 @@
   let armed = $state(false);
   onMount(() => requestAnimationFrame(() => requestAnimationFrame(() => (armed = true))));
 
-  const shown = $derived(armed ? Math.max(0, Math.min(100, value)) : 0);
-  const color = $derived(value >= 75 ? 'var(--success)' : value >= 50 ? 'var(--ember)' : 'var(--muted-foreground)');
+  const shown = $derived(armed && value !== null ? Math.max(0, Math.min(100, value)) : 0);
+  const color = $derived(
+    value === null ? 'var(--muted-foreground)' : value >= 75 ? 'var(--success)' : value >= 50 ? 'var(--ember)' : 'var(--muted-foreground)'
+  );
   const ticks = Array.from({ length: 11 }, (_, i) => i);
 </script>
 
-<div class="relative shrink-0" style="width: {size}px; height: {size}px" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label={label}>
+<div class="relative shrink-0" style="width: {size}px; height: {size}px" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value ?? undefined} aria-valuetext={value === null ? 'No score yet' : undefined} aria-label={label}>
   <svg viewBox="0 0 80 80" class="w-full h-full" aria-hidden="true">
     <!-- Rotated so the 270° opening sits at the bottom. -->
     <g transform="rotate(135 40 40)">
@@ -62,7 +65,9 @@
     </g>
   </svg>
   <span class="absolute inset-0 flex flex-col items-center justify-center leading-none">
-    <span class="font-display text-lg text-foreground"><Odometer value={Math.round(value)} /></span>
+    <span class="font-display text-lg text-foreground">
+      {#if value === null}<span class="text-muted-foreground">—</span>{:else}<Odometer value={Math.round(value)} />{/if}
+    </span>
     <span class="font-mono text-[8px] tracking-[0.18em] text-muted-foreground mt-0.5" aria-hidden="true">MATCH</span>
   </span>
 </div>
